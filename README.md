@@ -1,3 +1,15 @@
+---
+title: Platoon RL Environment
+emoji: 🚗
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: "4.42.0"
+python_version: "3.11"
+app_file: visualization/app.py
+pinned: false
+---
+
 # Platoon RL Environment
 Cooperative multi-agent emergency braking benchmark where LLM agents control follower vehicles using physics broadcasts.
 
