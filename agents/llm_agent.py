@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
-from typing import Callable
 from typing import Any
+from typing import Callable
 
 import torch
 from peft import PeftModel
@@ -22,6 +22,7 @@ FLOAT_REGEX = re.compile(r"([+\-]?[0-9]*\.?[0-9]+)")
 @dataclass
 class AgentOutput:
     raw_text: str
+    reasoning_text: str
     action_text: str
     accel_pedal: float
     brake_pedal: float
@@ -35,6 +36,7 @@ class LLMAgent:
         adapter_path: str | None = None,
         device: str = "cuda",
         max_new_tokens: int = 32,
+        enable_private_reasoning: bool = False,
         local_files_only: bool = False,
         progress_callback: Callable[[str], None] | None = None,
     ) -> None:
@@ -43,6 +45,7 @@ class LLMAgent:
         self.base_model_name = base_model_name
         self.adapter_path = adapter_path
         self.max_new_tokens = max_new_tokens
+        self.enable_private_reasoning = enable_private_reasoning
         self.device = device if torch.cuda.is_available() else "cpu"
         self.local_files_only = local_files_only
         self._system_instruction = (
@@ -52,6 +55,10 @@ class LLMAgent:
             "accel_pedal: <float_0_to_1>\n"
             "brake_pedal: <float_0_to_1>\n"
             "Never output explanations, markdown, roleplay text, or extra lines."
+        )
+        self._reasoning_system_instruction = (
+            "You explain a vehicle action in one concise sentence for local debugging. "
+            "Do not invent hidden state. No markdown."
         )
         self._log(
             "Runtime: "
@@ -100,6 +107,85 @@ class LLMAgent:
         self._log(f"Model set to eval (total init {time.time() - load_t0:.1f}s)")
 
     def act(self, observation_text: str, temperature: float = 0.0) -> AgentOutput:
+        return self.act_batch([observation_text], temperature=temperature)[0]
+
+    def act_batch(self, observation_texts: list[str], temperature: float = 0.0) -> list[AgentOutput]:
+        if not observation_texts:
+            return []
+
+        prompts = [self._build_prompt(text) for text in observation_texts]
+        inputs = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            truncation=True,
+            max_length=2048,
+            padding=True,
+        )
+        if self.device == "cuda":
+            inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+
+        input_ids = inputs["input_ids"]
+        attention_mask = inputs["attention_mask"]
+
+        generation_kwargs = {
+            "max_new_tokens": self.max_new_tokens,
+            "eos_token_id": self.tokenizer.eos_token_id,
+            "pad_token_id": self.tokenizer.pad_token_id,
+        }
+        if temperature > 0.0:
+            generation_kwargs["do_sample"] = True
+            generation_kwargs["temperature"] = max(temperature, 1e-3)
+            generation_kwargs["top_p"] = 0.95
+            generation_kwargs["top_k"] = 50
+        else:
+            generation_kwargs["do_sample"] = False
+
+        with torch.inference_mode():
+            generated = self.model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                **generation_kwargs,
+            )
+
+        # Each row may have a different prompt length due to batch padding.
+        prompt_lengths = attention_mask.sum(dim=1).tolist()
+        results: list[AgentOutput] = []
+        for i, prompt_len in enumerate(prompt_lengths):
+            new_tokens = generated[i][int(prompt_len):]
+            tail = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+            normalized_tail = self._normalize_tail(tail)
+            parsed = self._parse_action(normalized_tail)
+            if parsed is None:
+                action_text = "ACTION:\naccel_pedal: 0.00\nbrake_pedal: 0.00"
+                results.append(
+                    AgentOutput(
+                        raw_text=normalized_tail,
+                        reasoning_text="",
+                        action_text=action_text,
+                        accel_pedal=0.0,
+                        brake_pedal=0.0,
+                        parse_ok=False,
+                    )
+                )
+                continue
+
+            accel, brake = parsed
+            action_text = f"ACTION:\naccel_pedal: {accel:.2f}\nbrake_pedal: {brake:.2f}"
+            results.append(
+                AgentOutput(
+                    raw_text=normalized_tail,
+                    reasoning_text="",
+                    action_text=action_text,
+                    accel_pedal=accel,
+                    brake_pedal=brake,
+                    parse_ok=True,
+                )
+            )
+        if self.enable_private_reasoning:
+            self._populate_private_reasoning(observation_texts, results)
+        return results
+
+    def _build_prompt(self, observation_text: str) -> str:
         user_prompt = (
             f"{observation_text.rstrip()}\n"
             "Return ONLY the required action format. No extra text.\n"
@@ -117,60 +203,82 @@ class LLMAgent:
             )
         else:
             prompt = f"{self._system_instruction}\n\n{user_prompt}"
-        inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
-        if self.device == "cuda":
-            inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+        return prompt
 
-        generation_kwargs = {
-            "max_new_tokens": self.max_new_tokens,
-            "eos_token_id": self.tokenizer.eos_token_id,
-            "pad_token_id": self.tokenizer.pad_token_id,
-        }
-        if temperature > 0.0:
-            generation_kwargs["do_sample"] = True
-            generation_kwargs["temperature"] = max(temperature, 1e-3)
-            generation_kwargs["top_p"] = 0.95
-            generation_kwargs["top_k"] = 50
-        else:
-            generation_kwargs["do_sample"] = False
-
-        with torch.no_grad():
-            generated = self.model.generate(
-                **inputs,
-                **generation_kwargs,
-            )
-
-        # Slice by token length (not string length) to avoid prompt-text leakage in decoded tail.
-        prompt_len = int(inputs["input_ids"].shape[1])
-        new_tokens = generated[0][prompt_len:]
-        tail = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+    @staticmethod
+    def _normalize_tail(tail: str) -> str:
         # Trim at obvious conversation/format spillovers if present.
         for marker in ("```", "\nHuman:", "\nUser:", "\nAssistant:", "\n[OBSERVATION"):
             idx = tail.find(marker)
             if idx != -1:
                 tail = tail[:idx].strip()
-        normalized_tail = f"ACTION:\naccel_pedal: {tail}" if not tail.lower().startswith("action") else tail
+        return tail if "action" in tail.lower() else f"ACTION:\naccel_pedal: {tail}"
 
-        parsed = self._parse_action(normalized_tail)
-        if parsed is None:
-            action_text = "ACTION:\naccel_pedal: 0.00\nbrake_pedal: 0.00"
-            return AgentOutput(
-                raw_text=normalized_tail,
-                action_text=action_text,
-                accel_pedal=0.0,
-                brake_pedal=0.0,
-                parse_ok=False,
+    def _build_reasoning_prompt(self, observation_text: str, action_text: str) -> str:
+        user_prompt = (
+            f"Observation:\n{observation_text.rstrip()}\n\n"
+            f"Chosen action:\n{action_text}\n\n"
+            "Explain briefly why this action is reasonable."
+        )
+        if getattr(self.tokenizer, "chat_template", None):
+            return self.tokenizer.apply_chat_template(
+                [
+                    {"role": "system", "content": self._reasoning_system_instruction},
+                    {"role": "user", "content": user_prompt},
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        return f"{self._reasoning_system_instruction}\n\n{user_prompt}"
+
+    def _populate_private_reasoning(
+        self,
+        observation_texts: list[str],
+        outputs: list[AgentOutput],
+    ) -> None:
+        prompts = [
+            self._build_reasoning_prompt(obs, out.action_text)
+            for obs, out in zip(observation_texts, outputs, strict=False)
+        ]
+        inputs = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            truncation=True,
+            max_length=2048,
+            padding=True,
+        )
+        if self.device == "cuda":
+            inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+
+        with torch.inference_mode():
+            generated = self.model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                max_new_tokens=48,
+                do_sample=False,
+                eos_token_id=self.tokenizer.eos_token_id,
+                pad_token_id=self.tokenizer.pad_token_id,
             )
 
-        accel, brake = parsed
-        action_text = f"ACTION:\naccel_pedal: {accel:.2f}\nbrake_pedal: {brake:.2f}"
-        return AgentOutput(
-            raw_text=normalized_tail,
-            action_text=action_text,
-            accel_pedal=accel,
-            brake_pedal=brake,
-            parse_ok=True,
-        )
+        prompt_lengths = inputs["attention_mask"].sum(dim=1).tolist()
+        for i, prompt_len in enumerate(prompt_lengths):
+            reason = self.tokenizer.decode(generated[i][int(prompt_len):], skip_special_tokens=True).strip()
+            reason = self._sanitize_reasoning_text(reason)
+            outputs[i].reasoning_text = reason
+
+    @staticmethod
+    def _sanitize_reasoning_text(text: str) -> str:
+        for marker in ("```", "\nHuman:", "\nUser:", "\nAssistant:", "\nObservation:", "\nChosen action:"):
+            idx = text.find(marker)
+            if idx != -1:
+                text = text[:idx].strip()
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        if not lines:
+            return ""
+        first = lines[0]
+        if first.lower().startswith("reasoning:"):
+            first = first[len("reasoning:"):].strip()
+        return first
 
     @staticmethod
     def _parse_action(text: str) -> tuple[float, float] | None:
@@ -230,6 +338,7 @@ class LLMAgent:
             "adapter_path": self.adapter_path,
             "device": self.device,
             "max_new_tokens": self.max_new_tokens,
+            "enable_private_reasoning": self.enable_private_reasoning,
             "local_files_only": self.local_files_only,
         }
 

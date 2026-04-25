@@ -128,6 +128,12 @@ def main() -> None:
     obs = env.reset(seed=42)
     print("OK Environment ready (scenario: brake test)")
     print_llm_raw = os.getenv("PRINT_LLM_RAW", "1").strip().lower() in {"1", "true", "yes"}
+    enable_private_reasoning = os.getenv("ENABLE_PRIVATE_REASONING", "1").strip().lower() in {"1", "true", "yes"}
+    print_llm_reasoning = os.getenv("PRINT_LLM_REASONING", "1" if enable_private_reasoning else "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
     print("\n[GPU] Runtime diagnostics...")
     print(f"  python_executable={sys.executable}")
@@ -161,6 +167,7 @@ def main() -> None:
         base_model = "sshleifer/tiny-gpt2"
 
     model_path = os.getenv("MODEL_PATH", "").strip()
+    adapter_path = os.getenv("ADAPTER_PATH", "").strip()
     local_files_only = os.getenv("LOCAL_FILES_ONLY", "0").strip().lower() in {"1", "true", "yes"}
     if local_files_only:
         os.environ["HF_HUB_OFFLINE"] = "1"
@@ -305,7 +312,8 @@ def main() -> None:
         t0 = time.time()
         agent = LLMAgent(
             base_model_name=resolved_model,
-            adapter_path=None,
+            adapter_path=adapter_path if adapter_path else None,
+            enable_private_reasoning=enable_private_reasoning,
             local_files_only=local_files_only,
             progress_callback=_loader_trace,
         )
@@ -322,7 +330,12 @@ def main() -> None:
             print("  Hint: if network is unavailable, set MODEL_PATH to a local model directory.")
         return
 
-    print("\n[5/5] Running 30-step rollout...")
+    rollout_steps = int(os.getenv("ROLLOUT_STEPS", "30"))
+    print(f"\n[5/5] Running {rollout_steps}-step rollout...")
+    use_batch_inference = os.getenv("BATCH_INFERENCE", "1").strip().lower() in {"1", "true", "yes"}
+    print(f"INFO Inference mode: {'batched (2 agents / 1 generate call)' if use_batch_inference else 'separate (2 generate calls)'}")
+    print(f"INFO Private reasoning: {'enabled (local logging only)' if enable_private_reasoning else 'disabled'}")
+    print(f"INFO Adapter: {adapter_path if adapter_path else 'none (base model only)'}")
     print("-" * 80)
     print(f"{'Step':>4} | {'Phase':>12} | {'Agent 1 Action':>25} | {'Agent 2 Action':>25} | {'Rewards':>18}")
     print("-" * 80)
@@ -332,11 +345,20 @@ def main() -> None:
     parse_failures = 0
     nonzero_actions = 0
     steps_run = 0
+    total_infer_s = 0.0
 
-    for step in range(30):
+    for step in range(rollout_steps):
         try:
-            action_1 = agent.act(obs["agent_1"], temperature=0.0)
-            action_2 = agent.act(obs["agent_2"], temperature=0.0)
+            infer_t0 = time.time()
+            if use_batch_inference:
+                action_1, action_2 = agent.act_batch(
+                    [obs["agent_1"], obs["agent_2"]],
+                    temperature=0.0,
+                )
+            else:
+                action_1 = agent.act(obs["agent_1"], temperature=0.0)
+                action_2 = agent.act(obs["agent_2"], temperature=0.0)
+            total_infer_s += (time.time() - infer_t0)
         except Exception as e:
             print(f"ERROR Step {step}: Action generation failed: {e}")
             break
@@ -364,6 +386,11 @@ def main() -> None:
             raw_2 = " ".join(action_2.raw_text.split())
             print(f"      LLM1 raw: {raw_1[:220]}")
             print(f"      LLM2 raw: {raw_2[:220]}")
+        if print_llm_reasoning:
+            rsn_1 = " ".join(action_1.reasoning_text.split()) if action_1.reasoning_text else "<none>"
+            rsn_2 = " ".join(action_2.reasoning_text.split()) if action_2.reasoning_text else "<none>"
+            print(f"      LLM1 reasoning: {rsn_1[:220]}")
+            print(f"      LLM2 reasoning: {rsn_2[:220]}")
 
         if (not action_1.parse_ok) or (not action_2.parse_ok):
             parse_failures += int(not action_1.parse_ok) + int(not action_2.parse_ok)
@@ -385,6 +412,15 @@ def main() -> None:
         "LLM->RL handshake summary: "
         f"steps={steps_run}, parse_ok_rate={parse_ok_rate:.1%}, nonzero_action_rate={nonzero_rate:.1%}"
     )
+    if steps_run > 0:
+        avg_step_infer_ms = (total_infer_s / steps_run) * 1000.0
+        avg_action_infer_ms = (total_infer_s / (steps_run * 2)) * 1000.0
+        print(
+            "Inference timing: "
+            f"total={total_infer_s:.2f}s, "
+            f"avg_step={avg_step_infer_ms:.1f}ms, "
+            f"avg_action={avg_action_infer_ms:.1f}ms"
+        )
     if steps_run > 0:
         print("OK LLM outputs were consumed by RL env.step() and produced rewards/dones each step.")
     print("\nOK Rollout complete. Agents successfully controlled vehicles through brake scenario.")

@@ -99,6 +99,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr-rl", type=float, default=5e-6)
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--grad-accum", type=int, default=8)
+    parser.add_argument(
+        "--report-to",
+        type=str,
+        default="auto",
+        choices=["auto", "none", "wandb"],
+        help="Experiment tracking backend",
+    )
     parser.add_argument("--reset-metrics", action="store_true")
     return parser.parse_args()
 
@@ -120,6 +127,18 @@ def append_jsonl(path: Path, record: dict[str, Any]) -> None:
 
 def read_hf_username() -> str:
     return os.getenv("HF_USERNAME", "").strip()
+
+
+def resolve_report_to(report_to_arg: str) -> list[str]:
+    if report_to_arg == "none":
+        return []
+    if report_to_arg == "wandb":
+        return ["wandb"]
+
+    # auto mode: enable wandb only when API key is present.
+    if os.getenv("WANDB_API_KEY", "").strip():
+        return ["wandb"]
+    return []
 
 
 def maybe_upload(local_dir: Path, repo_id: str, commit_message: str) -> None:
@@ -234,6 +253,7 @@ def run_sft(args: argparse.Namespace) -> None:
     dataset = build_sft_dataset(data_path)
     model, tokenizer = load_base_model_and_tokenizer(args.base_model, args.max_seq_len)
 
+    report_to = resolve_report_to(args.report_to)
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         per_device_train_batch_size=args.batch_size,
@@ -246,7 +266,7 @@ def run_sft(args: argparse.Namespace) -> None:
         save_strategy="epoch",
         bf16=torch.cuda.is_available(),
         fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
-        report_to="none",
+        report_to=report_to,
     )
 
     trainer = SFTTrainer(
@@ -343,6 +363,7 @@ def apply_grpo_style_update(
     data = [{"text": f"{sample.prompt}\n{sample.action_text}"} for sample in samples]
     dataset = Dataset.from_list(data)
 
+    report_to = resolve_report_to(os.getenv("REPORT_TO", "auto"))
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         per_device_train_batch_size=batch_size,
@@ -351,7 +372,7 @@ def apply_grpo_style_update(
         num_train_epochs=1,
         logging_steps=5,
         save_strategy="no",
-        report_to="none",
+        report_to=report_to,
         bf16=torch.cuda.is_available(),
         fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     )
@@ -690,6 +711,7 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
 def main() -> None:
     load_dotenv(ROOT_DIR / ".env")
     args = parse_args()
+    os.environ["REPORT_TO"] = args.report_to
 
     if args.sft == args.rl:
         raise ValueError("Specify exactly one mode: --sft or --rl")
