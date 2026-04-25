@@ -173,6 +173,9 @@ class PlatoonEnv(Environment):
                     "jerk_penalty": terms.jerk_penalty,
                     "recovery_bonus": terms.recovery_bonus,
                     "comfort_penalty": terms.comfort_penalty,
+                    "alive_bonus": terms.alive_bonus,
+                    "gap_tracking_bonus": terms.gap_tracking_bonus,
+                    "speed_tracking_bonus": terms.speed_tracking_bonus,
                 },
             }
             collision = collision or gap <= 0.0

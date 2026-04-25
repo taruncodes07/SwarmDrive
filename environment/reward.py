@@ -17,6 +17,9 @@ class RewardTerms:
     jerk_penalty: float
     recovery_bonus: float
     comfort_penalty: float
+    alive_bonus: float
+    gap_tracking_bonus: float
+    speed_tracking_bonus: float
 
     @property
     def total(self) -> float:
@@ -27,6 +30,9 @@ class RewardTerms:
             + self.jerk_penalty
             + self.recovery_bonus
             + self.comfort_penalty
+            + self.alive_bonus
+            + self.gap_tracking_bonus
+            + self.speed_tracking_bonus
         )
 
 
@@ -73,6 +79,19 @@ class RewardModel:
             else 0.0
         )
 
+        # Positive shaping so stable, safe trajectories can score above zero.
+        alive_bonus = float(self.reward_cfg.get("alive_bonus", 0.0))
+        gap_tracking_bonus = (
+            float(self.reward_cfg.get("gap_tracking_bonus", 0.0))
+            if gap_abs <= gap_deadband
+            else 0.0
+        )
+        speed_tracking_bonus = (
+            float(self.reward_cfg.get("speed_tracking_bonus", 0.0))
+            if speed_abs <= speed_deadband
+            else 0.0
+        )
+
         return RewardTerms(
             collision_penalty=collision_penalty,
             gap_error_penalty=gap_error_penalty,
@@ -80,6 +99,9 @@ class RewardModel:
             jerk_penalty=jerk_penalty,
             recovery_bonus=recovery_bonus,
             comfort_penalty=comfort_penalty,
+            alive_bonus=alive_bonus,
+            gap_tracking_bonus=gap_tracking_bonus,
+            speed_tracking_bonus=speed_tracking_bonus,
         )
 
     @staticmethod
