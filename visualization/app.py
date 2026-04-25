@@ -39,6 +39,7 @@ class AppRuntime:
     mode: str = "Trained (RL)"
     done_trained: bool = False
     done_untrained: bool = False
+    is_playing: bool = False
     history: list[dict[str, Any]] | None = None
 
 
@@ -271,7 +272,31 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
     )
 
 
+def _play_loop(
+    mode: str,
+    delay: float,
+    max_steps: int = 400,
+) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+    RUNTIME.is_playing = True
+    for _ in range(max_steps):
+        if not RUNTIME.is_playing:
+            break
+
+        frame = _step_once(mode, delay)
+        yield frame
+
+        if mode == "Trained (RL)" and RUNTIME.done_trained:
+            break
+        if mode == "Untrained (base)" and RUNTIME.done_untrained:
+            break
+        if mode == "Side-by-Side" and RUNTIME.done_trained and RUNTIME.done_untrained:
+            break
+
+    RUNTIME.is_playing = False
+
+
 def _reset(seed: int) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+    RUNTIME.is_playing = False
     RUNTIME.done_trained = False
     RUNTIME.done_untrained = False
     RUNTIME.history = []
@@ -292,6 +317,7 @@ def _reset(seed: int) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[s
 
 
 def _pause() -> str:
+    RUNTIME.is_playing = False
     return "Paused. Click Play to continue stepping."
 
 
@@ -336,7 +362,7 @@ def build_app() -> gr.Blocks:
             reset = gr.Button("Reset")
 
         play.click(
-            fn=_step_once,
+            fn=_play_loop,
             inputs=[mode, speed],
             outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats],
         )
@@ -360,4 +386,5 @@ def build_app() -> gr.Blocks:
 
 if __name__ == "__main__":
     app = build_app()
+    app.queue(default_concurrency_limit=1)
     app.launch(server_name="0.0.0.0", server_port=7860)
