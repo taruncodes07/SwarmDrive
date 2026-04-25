@@ -93,7 +93,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint-every", type=int, default=50)
     parser.add_argument("--grpo-update-every", type=int, default=8)
     parser.add_argument("--group-size", type=int, default=4)
-    parser.add_argument("--base-model", type=str, default="Qwen/Qwen2.5-1.5B-Instruct")
+    default_base_model = os.getenv("MODEL_PATH", "").strip().strip('"').strip("'") or "Qwen/Qwen2.5-1.5B-Instruct"
+    parser.add_argument("--base-model", type=str, default=default_base_model)
     parser.add_argument("--adapter", type=str, default=None)
     parser.add_argument("--max-seq-len", type=int, default=2048)
     parser.add_argument("--max-new-tokens", type=int, default=32)
@@ -147,7 +148,9 @@ def maybe_upload(local_dir: Path, repo_id: str, commit_message: str) -> None:
     if not local_dir.exists() or not repo_id:
         return
     try:
-        from huggingface_hub import upload_folder
+        from huggingface_hub import create_repo, upload_folder
+
+        create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
 
         upload_folder(
             folder_path=str(local_dir),
@@ -157,6 +160,37 @@ def maybe_upload(local_dir: Path, repo_id: str, commit_message: str) -> None:
         )
     except Exception as exc:
         print(f"[WARN] HF upload failed for {repo_id}: {exc}")
+
+
+def _checkpoint_step(path: Path) -> int:
+    name = path.name
+    if name.startswith("checkpoint-"):
+        suffix = name.split("checkpoint-", maxsplit=1)[1]
+        if suffix.isdigit():
+            return int(suffix)
+    return -1
+
+
+def resolve_adapter_dir(path: str | Path | None) -> str | None:
+    if not path:
+        return None
+    root = Path(path)
+    if not root.exists():
+        return None
+    if (root / "adapter_config.json").exists():
+        return str(root)
+
+    candidates: list[Path] = []
+    for cfg in root.rglob("adapter_config.json"):
+        parent = cfg.parent
+        if (parent / "adapter_model.safetensors").exists() or (parent / "adapter_model.bin").exists():
+            candidates.append(parent)
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda p: (_checkpoint_step(p), len(p.parts)), reverse=True)
+    return str(candidates[0])
 
 
 def load_base_model_and_tokenizer(
@@ -190,14 +224,6 @@ def load_base_model_and_tokenizer(
         token=hf_token,
     )
 
-    lora_cfg = LoraConfig(
-        r=16,
-        lora_alpha=32,
-        lora_dropout=0.05,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-        task_type="CAUSAL_LM",
-    )
-    model = get_peft_model(model, lora_cfg)
     if adapter_path:
         try:
             model = PeftModel.from_pretrained(model, adapter_path, is_trainable=True)
@@ -207,6 +233,17 @@ def load_base_model_and_tokenizer(
             print(f"Loaded adapter into training model (no is_trainable flag): {adapter_path}")
         except Exception as exc:
             print(f"[WARN] Failed to load adapter into training model ({adapter_path}): {exc}")
+
+    # For SFT (no adapter input), initialize fresh LoRA trainable adapters.
+    if not isinstance(model, PeftModel):
+        lora_cfg = LoraConfig(
+            r=16,
+            lora_alpha=32,
+            lora_dropout=0.05,
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+            task_type="CAUSAL_LM",
+        )
+        model = get_peft_model(model, lora_cfg)
     model.config.use_cache = False
     tokenizer.model_max_length = max_seq_len
     return model, tokenizer
@@ -626,7 +663,12 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
         metrics_path.unlink()
 
     sft_path = ROOT_DIR / "checkpoints" / "sft_final"
-    adapter_path = args.adapter if args.adapter else (str(sft_path) if sft_path.exists() else None)
+    raw_adapter = args.adapter if args.adapter else (str(sft_path) if sft_path.exists() else None)
+    adapter_path = resolve_adapter_dir(raw_adapter)
+    if raw_adapter and not adapter_path:
+        print(f"[WARN] Could not find adapter_config.json under {raw_adapter}; RL will start from base model")
+    elif adapter_path:
+        print(f"Using adapter for RL init: {adapter_path}")
     model, tokenizer = load_base_model_and_tokenizer(
         args.base_model,
         args.max_seq_len,
@@ -649,6 +691,7 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
 
     for episode in range(1, args.episodes + 1):
         episode_seed = args.seed + episode
+        print(f"[RL] episode {episode}/{args.episodes} start seed={episode_seed}", flush=True)
         metrics, prompts = run_episode(
             env,
             agent,
@@ -663,8 +706,15 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
         row = asdict(metrics)
         row.update({"event": "episode_end", "proxy_loss": proxy_loss})
         append_jsonl(metrics_path, row)
+        print(
+            f"[RL] episode {episode} done steps={metrics.steps} "
+            f"mean_reward={metrics.mean_reward:.3f} collision={metrics.collision} "
+            f"parse_fail_rate={metrics.parse_failure_rate:.3f}",
+            flush=True,
+        )
 
         if episode % args.grpo_update_every == 0 and prompt_buffer:
+            print(f"[RL] episode {episode} update start prompts={len(prompt_buffer[:max_prompts_per_update])}", flush=True)
             update_prompts = prompt_buffer[:max_prompts_per_update]
             native_ok, native_mode = try_native_grpo_update(
                 model=model,
@@ -696,6 +746,11 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
                     batch_size=args.batch_size,
                     grad_accum=args.grad_accum,
                 )
+            print(
+                f"[RL] episode {episode} update done mode={native_mode} native={native_ok} "
+                f"selected={selected_count or len(update_prompts)}",
+                flush=True,
+            )
 
             prompt_buffer.clear()
             append_jsonl(
@@ -713,6 +768,12 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
         if episode % args.eval_every == 0:
             eval_metrics = evaluate(agent, eval_seeds=eval_seeds)
             append_jsonl(metrics_path, {"event": "evaluation", "episode": episode, **eval_metrics})
+            print(
+                f"[RL] episode {episode} eval collision_rate={eval_metrics['collision_rate']:.3f} "
+                f"mean_reward={eval_metrics['mean_episode_reward']:.3f} "
+                f"mean_gap_error={eval_metrics['mean_gap_error_final']:.3f}",
+                flush=True,
+            )
 
             if eval_metrics["collision_rate"] < 0.05:
                 low_collision_windows += 1
@@ -736,10 +797,12 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
             ckpt_dir.mkdir(parents=True, exist_ok=True)
             model.save_pretrained(str(ckpt_dir))
             tokenizer.save_pretrained(str(ckpt_dir))
+            print(f"[RL] episode {episode} checkpoint saved to {ckpt_dir}", flush=True)
 
             hf_username = read_hf_username()
             if hf_username and hf_username != "your_hf_username":
                 maybe_upload(ckpt_dir, f"{hf_username}/platoon-qwen-rl", f"Upload RL checkpoint episode {episode}")
+                print(f"[RL] episode {episode} checkpoint uploaded to {hf_username}/platoon-qwen-rl", flush=True)
 
     plot_training_curves(metrics_path, reward_png, loss_png)
     print("RL training completed")

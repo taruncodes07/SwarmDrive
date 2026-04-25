@@ -1,7 +1,7 @@
 simulation:
   seed: 42
   dt: 0.1
-  max_steps: 350
+  max_steps: 80
   num_cars: 3
   vehicle_length: 4.5
   vehicle_width: 1.8
@@ -24,23 +24,23 @@ initial_conditions:
 reward:
   collision_penalty: -100.0
   gap_error_cap: 15.0
-  gap_error_weight: 0.4
+  gap_error_weight: 0.28
   gap_deadband_m: 0.5
-  speed_error_weight: 0.15
+  speed_error_weight: 0.1
   speed_deadband_mps: 0.2
   jerk_cap: 5.0
-  jerk_weight: 0.08
+  jerk_weight: 0.05
   steady2_recovery_bonus: 3.0
   comfort_penalty: -0.05
-  alive_bonus: 0.06
-  gap_tracking_bonus: 0.20
-  speed_tracking_bonus: 0.10
+  alive_bonus: 0.08
+  gap_tracking_bonus: 0.25
+  speed_tracking_bonus: 0.12
 scenario_01:
-  steady_end: 50
-  brake_end: 120
-  hold_low_end: 180
-  recovery_end: 260
-  episode_end: 350
+  steady_end: 18
+  brake_end: 38
+  hold_low_end: 52
+  recovery_end: 70
+  episode_end: 80
   lead_cruise_speed: 15.0
   lead_low_speed: 5.0
   lead_brake_pedal: 0.85
@@ -49,6 +49,16 @@ scenario_01:
 logging:
   metrics_path: results/metrics.jsonl
 evaluation:
-  seeds: [1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010]
+  seeds:
+  - 1001
+  - 1002
+  - 1003
+  - 1004
+  - 1005
+  - 1006
+  - 1007
+  - 1008
+  - 1009
+  - 1010
 training_runtime:
-  max_prompts_per_update: 400
+  max_prompts_per_update: 120
