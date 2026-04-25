@@ -141,21 +141,27 @@ def maybe_upload(local_dir: Path, repo_id: str, commit_message: str) -> None:
 def load_base_model_and_tokenizer(base_model: str, max_seq_len: int) -> tuple[Any, Any]:
     torch = _import_torch()
     stack = _import_training_stack()
+    hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
     AutoTokenizer = stack["AutoTokenizer"]
     AutoModelForCausalLM = stack["AutoModelForCausalLM"]
     LoraConfig = stack["LoraConfig"]
     get_peft_model = stack["get_peft_model"]
 
-    tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        base_model,
+        trust_remote_code=True,
+        token=hf_token,
+    )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
         trust_remote_code=True,
         device_map="auto" if torch.cuda.is_available() else None,
+        token=hf_token,
     )
 
     lora_cfg = LoraConfig(

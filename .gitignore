@@ -13,3 +13,6 @@ _prd_tmp.zip
 _prd_text.txt
 results/*.tmp
 .ipynb_checkpoints/
+torch-2.11.0+cu128-cp314-cp314-win_amd64.whl
+checkpoints/base_models/
+.venv/

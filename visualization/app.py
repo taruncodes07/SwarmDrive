@@ -51,8 +51,9 @@ def _gpu_info() -> str:
 
 
 def _try_download_adapter(repo_id: str) -> Path | None:
+    hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
     try:
-        local_dir = snapshot_download(repo_id=repo_id)
+        local_dir = snapshot_download(repo_id=repo_id, token=hf_token)
         return Path(local_dir)
     except Exception:
         return None
