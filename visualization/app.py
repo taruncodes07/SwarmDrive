@@ -50,11 +50,39 @@ def _gpu_info() -> str:
     return "GPU unavailable. Running on CPU (demo may be slower)."
 
 
+def _checkpoint_step(path: Path) -> int:
+    name = path.name
+    if name.startswith("checkpoint-"):
+        tail = name.split("checkpoint-", maxsplit=1)[1]
+        if tail.isdigit():
+            return int(tail)
+    return -1
+
+
+def _resolve_adapter_dir(root: Path) -> Path | None:
+    # Accept direct adapter folder first.
+    if (root / "adapter_config.json").exists():
+        return root
+
+    candidates: list[Path] = []
+    for cfg in root.rglob("adapter_config.json"):
+        parent = cfg.parent
+        if (parent / "adapter_model.safetensors").exists() or (parent / "adapter_model.bin").exists():
+            candidates.append(parent)
+
+    if not candidates:
+        return None
+
+    # Prefer the newest numbered checkpoint when checkpoints are present.
+    candidates.sort(key=lambda p: (_checkpoint_step(p), len(p.parts)), reverse=True)
+    return candidates[0]
+
+
 def _try_download_adapter(repo_id: str) -> Path | None:
     hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
     try:
         local_dir = snapshot_download(repo_id=repo_id, token=hf_token)
-        return Path(local_dir)
+        return _resolve_adapter_dir(Path(local_dir))
     except Exception:
         return None
 

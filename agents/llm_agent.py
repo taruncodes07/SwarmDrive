@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from typing import Callable
 
@@ -90,9 +91,14 @@ class LLMAgent:
         self._log("Model load complete")
 
         if adapter_path:
-            self._log(f"Adapter load start: {adapter_path}")
-            self.model = PeftModel.from_pretrained(model, adapter_path)
-            self._log("Adapter load complete")
+            adapter_dir = Path(adapter_path)
+            if (adapter_dir / "adapter_config.json").exists():
+                self._log(f"Adapter load start: {adapter_path}")
+                self.model = PeftModel.from_pretrained(model, adapter_path)
+                self._log("Adapter load complete")
+            else:
+                self.model = model
+                self._log(f"Adapter missing adapter_config.json at {adapter_path}; using base model")
         else:
             self.model = model
             self._log("No adapter configured")
