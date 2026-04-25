@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import os
 import random
@@ -269,14 +270,22 @@ def run_sft(args: argparse.Namespace) -> None:
         report_to=report_to,
     )
 
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=dataset,
-        dataset_text_field="text",
-        max_seq_length=args.max_seq_len,
-        args=training_args,
-    )
+    trainer_kwargs: dict[str, Any] = {
+        "model": model,
+        "train_dataset": dataset,
+        "args": training_args,
+    }
+    sft_sig = inspect.signature(SFTTrainer.__init__)
+    if "tokenizer" in sft_sig.parameters:
+        trainer_kwargs["tokenizer"] = tokenizer
+    if "processing_class" in sft_sig.parameters:
+        trainer_kwargs["processing_class"] = tokenizer
+    if "dataset_text_field" in sft_sig.parameters:
+        trainer_kwargs["dataset_text_field"] = "text"
+    if "max_seq_length" in sft_sig.parameters:
+        trainer_kwargs["max_seq_length"] = args.max_seq_len
+
+    trainer = SFTTrainer(**trainer_kwargs)
 
     trainer.train()
     trainer.save_model(str(output_dir))
@@ -377,14 +386,22 @@ def apply_grpo_style_update(
         fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     )
 
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=dataset,
-        dataset_text_field="text",
-        max_seq_length=max_seq_len,
-        args=training_args,
-    )
+    trainer_kwargs: dict[str, Any] = {
+        "model": model,
+        "train_dataset": dataset,
+        "args": training_args,
+    }
+    sft_sig = inspect.signature(SFTTrainer.__init__)
+    if "tokenizer" in sft_sig.parameters:
+        trainer_kwargs["tokenizer"] = tokenizer
+    if "processing_class" in sft_sig.parameters:
+        trainer_kwargs["processing_class"] = tokenizer
+    if "dataset_text_field" in sft_sig.parameters:
+        trainer_kwargs["dataset_text_field"] = "text"
+    if "max_seq_length" in sft_sig.parameters:
+        trainer_kwargs["max_seq_length"] = max_seq_len
+
+    trainer = SFTTrainer(**trainer_kwargs)
     trainer.train()
 
 
