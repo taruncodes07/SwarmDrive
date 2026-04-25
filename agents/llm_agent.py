@@ -8,6 +8,11 @@ import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+try:
+    from unsloth import FastLanguageModel as _FastLanguageModel  # type: ignore[import]
+except Exception:
+    _FastLanguageModel = None  # type: ignore[assignment]
+
 ACTION_REGEX = re.compile(
     r"ACTION:\s*accel_pedal:\s*([0-9]*\.?[0-9]+)\s*brake_pedal:\s*([0-9]*\.?[0-9]+)",
     re.IGNORECASE | re.MULTILINE,
@@ -30,29 +35,43 @@ class LLMAgent:
         adapter_path: str | None = None,
         device: str = "cuda",
         max_new_tokens: int = 32,
+        use_unsloth: bool = False,
     ) -> None:
         self.base_model_name = base_model_name
         self.adapter_path = adapter_path
         self.max_new_tokens = max_new_tokens
         self.device = device if torch.cuda.is_available() else "cpu"
 
-        self.tokenizer = AutoTokenizer.from_pretrained(base_model_name, trust_remote_code=True)
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model_name,
-            torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-            device_map="auto" if self.device == "cuda" else None,
-            trust_remote_code=True,
-        )
-
-        if adapter_path:
-            self.model = PeftModel.from_pretrained(model, adapter_path)
-        else:
+        if use_unsloth and _FastLanguageModel is not None:
+            load_name = adapter_path if adapter_path else base_model_name
+            model, tokenizer = _FastLanguageModel.from_pretrained(
+                model_name=load_name,
+                max_seq_length=2048,
+                dtype=None,
+                load_in_4bit=True,
+            )
+            _FastLanguageModel.for_inference(model)
+            self.tokenizer = tokenizer
             self.model = model
+            self.model.eval()
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(base_model_name, trust_remote_code=True)
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        self.model.eval()
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model_name,
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                device_map="auto" if self.device == "cuda" else None,
+                trust_remote_code=True,
+            )
+
+            if adapter_path:
+                self.model = PeftModel.from_pretrained(model, adapter_path)
+            else:
+                self.model = model
+
+            self.model.eval()
 
     def act(self, observation_text: str, temperature: float = 0.0) -> AgentOutput:
         inputs = self.tokenizer(observation_text, return_tensors="pt", truncation=True, max_length=2048)

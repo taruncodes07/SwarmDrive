@@ -61,7 +61,7 @@ def main():
         total_reward_2 += rewards["agent_2"]
         
         # Get current phase
-        phase_name = infos.get("phase", "unknown")
+        phase_name = env.phase
         
         # Print step summary
         action_1_str = f"a:{action_1.accel_pedal:.2f} b:{action_1.brake_pedal:.2f}"
