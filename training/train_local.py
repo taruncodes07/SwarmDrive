@@ -178,7 +178,7 @@ def load_base_model_and_tokenizer(base_model: str, max_seq_len: int) -> tuple[An
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
-        dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
         trust_remote_code=True,
         device_map="auto" if torch.cuda.is_available() else None,
         token=hf_token,
