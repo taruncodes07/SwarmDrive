@@ -40,7 +40,7 @@ def _import_torch() -> Any:
 def _import_training_stack() -> dict[str, Any]:
     try:
         from datasets import Dataset
-        from peft import LoraConfig, get_peft_model
+        from peft import LoraConfig, PeftModel, get_peft_model
         from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
         from trl import SFTTrainer
     except ImportError as exc:
@@ -51,6 +51,7 @@ def _import_training_stack() -> dict[str, Any]:
     return {
         "Dataset": Dataset,
         "LoraConfig": LoraConfig,
+        "PeftModel": PeftModel,
         "get_peft_model": get_peft_model,
         "AutoModelForCausalLM": AutoModelForCausalLM,
         "AutoTokenizer": AutoTokenizer,
@@ -158,7 +159,11 @@ def maybe_upload(local_dir: Path, repo_id: str, commit_message: str) -> None:
         print(f"[WARN] HF upload failed for {repo_id}: {exc}")
 
 
-def load_base_model_and_tokenizer(base_model: str, max_seq_len: int) -> tuple[Any, Any]:
+def load_base_model_and_tokenizer(
+    base_model: str,
+    max_seq_len: int,
+    adapter_path: str | None = None,
+) -> tuple[Any, Any]:
     torch = _import_torch()
     stack = _import_training_stack()
     hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
@@ -166,6 +171,7 @@ def load_base_model_and_tokenizer(base_model: str, max_seq_len: int) -> tuple[An
     AutoTokenizer = stack["AutoTokenizer"]
     AutoModelForCausalLM = stack["AutoModelForCausalLM"]
     LoraConfig = stack["LoraConfig"]
+    PeftModel = stack["PeftModel"]
     get_peft_model = stack["get_peft_model"]
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -192,6 +198,15 @@ def load_base_model_and_tokenizer(base_model: str, max_seq_len: int) -> tuple[An
         task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, lora_cfg)
+    if adapter_path:
+        try:
+            model = PeftModel.from_pretrained(model, adapter_path, is_trainable=True)
+            print(f"Loaded adapter into training model: {adapter_path}")
+        except TypeError:
+            model = PeftModel.from_pretrained(model, adapter_path)
+            print(f"Loaded adapter into training model (no is_trainable flag): {adapter_path}")
+        except Exception as exc:
+            print(f"[WARN] Failed to load adapter into training model ({adapter_path}): {exc}")
     model.config.use_cache = False
     tokenizer.model_max_length = max_seq_len
     return model, tokenizer
@@ -610,13 +625,18 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
     if args.reset_metrics and metrics_path.exists():
         metrics_path.unlink()
 
-    model, tokenizer = load_base_model_and_tokenizer(args.base_model, args.max_seq_len)
-
     sft_path = ROOT_DIR / "checkpoints" / "sft_final"
     adapter_path = args.adapter if args.adapter else (str(sft_path) if sft_path.exists() else None)
+    model, tokenizer = load_base_model_and_tokenizer(
+        args.base_model,
+        args.max_seq_len,
+        adapter_path=adapter_path,
+    )
     agent = LLMAgent(
         base_model_name=args.base_model,
         adapter_path=adapter_path,
+        model=model,
+        tokenizer=tokenizer,
         max_new_tokens=args.max_new_tokens,
     )
 

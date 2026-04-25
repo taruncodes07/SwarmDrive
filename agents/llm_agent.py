@@ -35,6 +35,8 @@ class LLMAgent:
         self,
         base_model_name: str,
         adapter_path: str | None = None,
+        model: Any | None = None,
+        tokenizer: Any | None = None,
         device: str = "cuda",
         max_new_tokens: int = 32,
         enable_private_reasoning: bool = False,
@@ -69,39 +71,47 @@ class LLMAgent:
             f"local_files_only={self.local_files_only}"
         )
 
-        self._log(f"Tokenizer load start: {base_model_name}")
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            base_model_name,
-            trust_remote_code=True,
-            local_files_only=self.local_files_only,
-        )
-        self._log("Tokenizer load complete")
+        if model is not None and tokenizer is not None:
+            self.model = model
+            self.tokenizer = tokenizer
+            self._log("Using preloaded model/tokenizer")
+            if adapter_path:
+                self._log("Adapter path provided with preloaded model; expected adapter already loaded.")
+        else:
+            self._log(f"Tokenizer load start: {base_model_name}")
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                base_model_name,
+                trust_remote_code=True,
+                local_files_only=self.local_files_only,
+            )
+            self._log("Tokenizer load complete")
+
+            self._log("Model load start (weights/config)")
+            loaded_model = AutoModelForCausalLM.from_pretrained(
+                base_model_name,
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                device_map="auto" if self.device == "cuda" else None,
+                trust_remote_code=True,
+                local_files_only=self.local_files_only,
+                low_cpu_mem_usage=True,
+            )
+            self._log("Model load complete")
+
+            if adapter_path:
+                adapter_dir = Path(adapter_path)
+                if (adapter_dir / "adapter_config.json").exists():
+                    self._log(f"Adapter load start: {adapter_path}")
+                    self.model = PeftModel.from_pretrained(loaded_model, adapter_path)
+                    self._log("Adapter load complete")
+                else:
+                    self.model = loaded_model
+                    self._log(f"Adapter missing adapter_config.json at {adapter_path}; using base model")
+            else:
+                self.model = loaded_model
+                self._log("No adapter configured")
+
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-
-        self._log("Model load start (weights/config)")
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model_name,
-            torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-            device_map="auto" if self.device == "cuda" else None,
-            trust_remote_code=True,
-            local_files_only=self.local_files_only,
-            low_cpu_mem_usage=True,
-        )
-        self._log("Model load complete")
-
-        if adapter_path:
-            adapter_dir = Path(adapter_path)
-            if (adapter_dir / "adapter_config.json").exists():
-                self._log(f"Adapter load start: {adapter_path}")
-                self.model = PeftModel.from_pretrained(model, adapter_path)
-                self._log("Adapter load complete")
-            else:
-                self.model = model
-                self._log(f"Adapter missing adapter_config.json at {adapter_path}; using base model")
-        else:
-            self.model = model
-            self._log("No adapter configured")
 
         self.model.eval()
         if hasattr(self.model, "generation_config"):
