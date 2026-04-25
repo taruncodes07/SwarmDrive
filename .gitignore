@@ -16,3 +16,4 @@ results/*.tmp
 torch-2.11.0+cu128-cp314-cp314-win_amd64.whl
 checkpoints/base_models/
 .venv/
+.env

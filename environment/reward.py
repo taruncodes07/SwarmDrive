@@ -46,11 +46,17 @@ class RewardModel:
         gap_error = gap - desired_gap
         collision_penalty = self.reward_cfg["collision_penalty"] if gap <= 0.0 else 0.0
 
-        gap_error_penalty = -min(abs(gap_error), self.reward_cfg["gap_error_cap"]) * self.reward_cfg[
-            "gap_error_weight"
-        ]
+        gap_deadband = float(self.reward_cfg.get("gap_deadband_m", 0.5))
+        speed_deadband = float(self.reward_cfg.get("speed_deadband_mps", 0.2))
+        in_steady = phase in {"steady", "steady_2"}
 
-        speed_maintenance = -abs(ego.velocity - front.velocity) * self.reward_cfg["speed_error_weight"]
+        gap_abs = abs(gap_error)
+        gap_over = max(0.0, gap_abs - (gap_deadband if in_steady else 0.0))
+        gap_error_penalty = -min(gap_over, self.reward_cfg["gap_error_cap"]) * self.reward_cfg["gap_error_weight"]
+
+        speed_abs = abs(ego.velocity - front.velocity)
+        speed_over = max(0.0, speed_abs - (speed_deadband if in_steady else 0.0))
+        speed_maintenance = -speed_over * self.reward_cfg["speed_error_weight"]
 
         jerk = abs((ego.net_acceleration - ego.last_net_acceleration) / self.dt)
         jerk_penalty = -min(jerk, self.reward_cfg["jerk_cap"]) * self.reward_cfg["jerk_weight"]

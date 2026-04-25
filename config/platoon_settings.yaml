@@ -25,7 +25,9 @@ reward:
   collision_penalty: -100.0
   gap_error_cap: 15.0
   gap_error_weight: 0.4
+  gap_deadband_m: 0.5
   speed_error_weight: 0.15
+  speed_deadband_mps: 0.2
   jerk_cap: 5.0
   jerk_weight: 0.08
   steady2_recovery_bonus: 3.0

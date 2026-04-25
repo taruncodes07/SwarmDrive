@@ -45,6 +45,14 @@ class LLMAgent:
         self.max_new_tokens = max_new_tokens
         self.device = device if torch.cuda.is_available() else "cpu"
         self.local_files_only = local_files_only
+        self._system_instruction = (
+            "You are a vehicle controller for platoon safety. "
+            "Respond with ONLY this exact 3-line format and nothing else:\n"
+            "ACTION:\n"
+            "accel_pedal: <float_0_to_1>\n"
+            "brake_pedal: <float_0_to_1>\n"
+            "Never output explanations, markdown, roleplay text, or extra lines."
+        )
         self._log(
             "Runtime: "
             f"torch={torch.__version__}, "
@@ -83,12 +91,32 @@ class LLMAgent:
             self._log("No adapter configured")
 
         self.model.eval()
+        if hasattr(self.model, "generation_config"):
+            # Keep greedy decoding truly greedy and silence invalid-generation-flag warnings.
+            self.model.generation_config.do_sample = False
+            self.model.generation_config.temperature = None
+            self.model.generation_config.top_p = None
+            self.model.generation_config.top_k = None
         self._log(f"Model set to eval (total init {time.time() - load_t0:.1f}s)")
 
     def act(self, observation_text: str, temperature: float = 0.0) -> AgentOutput:
-        # Strongly bias the model toward the required output schema.
-        forced_prefix = "ACTION:\naccel_pedal: "
-        prompt = observation_text.rstrip() + "\n" + forced_prefix
+        user_prompt = (
+            f"{observation_text.rstrip()}\n"
+            "Return ONLY the required action format. No extra text.\n"
+            "ACTION:\n"
+            "accel_pedal: "
+        )
+        if getattr(self.tokenizer, "chat_template", None):
+            prompt = self.tokenizer.apply_chat_template(
+                [
+                    {"role": "system", "content": self._system_instruction},
+                    {"role": "user", "content": user_prompt},
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        else:
+            prompt = f"{self._system_instruction}\n\n{user_prompt}"
         inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
         if self.device == "cuda":
             inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
@@ -112,9 +140,16 @@ class LLMAgent:
                 **generation_kwargs,
             )
 
-        full_text = self.tokenizer.decode(generated[0], skip_special_tokens=True)
-        tail = full_text[len(prompt) :].strip() if full_text.startswith(prompt) else full_text.strip()
-        normalized_tail = f"{forced_prefix}{tail}"
+        # Slice by token length (not string length) to avoid prompt-text leakage in decoded tail.
+        prompt_len = int(inputs["input_ids"].shape[1])
+        new_tokens = generated[0][prompt_len:]
+        tail = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        # Trim at obvious conversation/format spillovers if present.
+        for marker in ("```", "\nHuman:", "\nUser:", "\nAssistant:", "\n[OBSERVATION"):
+            idx = tail.find(marker)
+            if idx != -1:
+                tail = tail[:idx].strip()
+        normalized_tail = f"ACTION:\naccel_pedal: {tail}" if not tail.lower().startswith("action") else tail
 
         parsed = self._parse_action(normalized_tail)
         if parsed is None:

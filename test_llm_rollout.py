@@ -127,6 +127,7 @@ def main() -> None:
     env = PlatoonEnv()
     obs = env.reset(seed=42)
     print("OK Environment ready (scenario: brake test)")
+    print_llm_raw = os.getenv("PRINT_LLM_RAW", "1").strip().lower() in {"1", "true", "yes"}
 
     print("\n[GPU] Runtime diagnostics...")
     print(f"  python_executable={sys.executable}")
@@ -358,6 +359,11 @@ def main() -> None:
         reward_str = f"a1:{rewards['agent_1']:+.2f} a2:{rewards['agent_2']:+.2f}"
 
         print(f"{step:4d} | {phase_name:>12} | {action_1_str:>25} | {action_2_str:>25} | {reward_str:>18}")
+        if print_llm_raw:
+            raw_1 = " ".join(action_1.raw_text.split())
+            raw_2 = " ".join(action_2.raw_text.split())
+            print(f"      LLM1 raw: {raw_1[:220]}")
+            print(f"      LLM2 raw: {raw_2[:220]}")
 
         if (not action_1.parse_ok) or (not action_2.parse_ok):
             parse_failures += int(not action_1.parse_ok) + int(not action_2.parse_ok)
