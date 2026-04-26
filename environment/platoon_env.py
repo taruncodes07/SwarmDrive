@@ -18,7 +18,7 @@ except Exception:  # pragma: no cover - fallback when OpenEnv is unavailable loc
 from config.settings import ROOT_DIR, load_settings
 from environment.communication import BroadcastLayer
 from environment.reward import RewardModel
-from environment.scenarios import Scenario01Brake, Scenario02Shockwave, Scenario03LowFriction
+from environment.scenarios import Scenario01Brake, Scenario02Merge, Scenario03LowFriction
 from environment.vehicle import Vehicle
 
 ACTION_REGEX = re.compile(
@@ -63,8 +63,8 @@ class PlatoonEnv(Environment):
     def _build_scenario(self, scenario_name: str) -> Any:
         if scenario_name == "scenario_01_brake":
             return Scenario01Brake(self.settings["scenario_01"])
-        if scenario_name == "scenario_02_shockwave":
-            return Scenario02Shockwave(self.settings["scenario_02"])
+        if scenario_name == "scenario_02_merge":
+            return Scenario02Merge(self.settings["scenario_02"])
         if scenario_name == "scenario_03_low_friction":
             return Scenario03LowFriction(self.settings["scenario_03"])
         raise ValueError(f"Unknown scenario: {scenario_name}")
@@ -90,6 +90,7 @@ class PlatoonEnv(Environment):
                 car_id=0,
                 x=float(init["car_0"]["x"]),
                 velocity=float(init["car_0"]["velocity"]),
+                path_type="straight",
                 length=float(sim["vehicle_length"]),
                 width=float(sim["vehicle_width"]),
             ),
@@ -97,6 +98,7 @@ class PlatoonEnv(Environment):
                 car_id=1,
                 x=float(init["car_1"]["x"]),
                 velocity=float(init["car_1"]["velocity"]),
+                path_type="straight",
                 length=float(sim["vehicle_length"]),
                 width=float(sim["vehicle_width"]),
             ),
@@ -104,6 +106,7 @@ class PlatoonEnv(Environment):
                 car_id=2,
                 x=float(init["car_2"]["x"]),
                 velocity=float(init["car_2"]["velocity"]),
+                path_type="merge" if self.scenario_name == "scenario_02_merge" else "straight",
                 length=float(sim["vehicle_length"]),
                 width=float(sim["vehicle_width"]),
             ),
@@ -159,6 +162,12 @@ class PlatoonEnv(Environment):
                 v_min=self.v_min,
                 v_max=self.v_max,
             )
+
+        for vehicle in self.vehicles.values():
+            if hasattr(self.scenario, "get_y_position"):
+                vehicle.y = self.scenario.get_y_position(vehicle)
+            else:
+                vehicle.y = 0.0
 
         self.broadcast_layer.update([vehicle.to_broadcast_packet() for vehicle in self.vehicles.values()])
 
@@ -246,6 +255,12 @@ class PlatoonEnv(Environment):
         front = self.vehicles[agent_id - 1]
 
         gap_to_front = self.reward_model.gap_to_front(front, ego)
+        # In merge scenario, we want to show distance to merge point as well
+        merge_info = ""
+        if hasattr(self.scenario, "x_merge"):
+            dist_to_merge = self.scenario.x_merge - ego.x
+            merge_info = f"dist_to_merge: {dist_to_merge:.2f} m\n"
+
         desired_gap = self.reward_model.desired_gap(
             ego_velocity=ego.velocity,
             min_gap=self.min_desired_gap,
@@ -260,9 +275,9 @@ class PlatoonEnv(Environment):
         peer_lines = []
         for packet in self.broadcast_layer.receive_for(agent_id):
             peer_lines.append(
-                "Car {sender_id} | x={x_position:.2f} m | vel={velocity:.2f} m/s | "
-                "accel_pedal={accel_pedal:.2f} | brake_pedal={brake_pedal:.2f} | "
-                "net_accel={net_acceleration:+.2f} m/s^2 | len=4.5 m".format(**packet)
+                "Car {sender_id} | x={x_position:.2f} m | y={y_position:.2f} m | vel={velocity:.2f} m/s | "
+                "path={path_type} | accel_pedal={accel_pedal:.2f} | brake_pedal={brake_pedal:.2f} | "
+                "net_accel={net_acceleration:+.2f} m/s^2".format(**packet)
             )
         peer_block = "\n".join(peer_lines) if peer_lines else "<no broadcasts yet>"
 
@@ -270,9 +285,12 @@ class PlatoonEnv(Environment):
             f"[OBSERVATION - Agent {agent_id} - Step {self.timestep}]\n"
             f"scenario_name: {self.scenario_name}\n"
             f"scenario_phase: {phase}\n"
+            f"{merge_info}"
             f"road_grip:      {road_grip:.2f}\n"
             f"road_grade:     {road_grade:+.3f}\n"
             f"ego_velocity:    {ego.velocity:.2f} m/s\n"
+            f"ego_y:           {ego.y:.2f} m\n"
+            f"ego_path:        {ego.path_type}\n"
             f"ego_accel_pedal: {ego.accel_pedal:.2f}\n"
             f"ego_brake_pedal: {ego.brake_pedal:.2f}\n"
             f"ego_x:           {ego.x:.2f} m\n"
@@ -328,7 +346,9 @@ def _run_smoke_test(scenario_name: str | None = None) -> None:
     required_broadcast_fields = {
         "sender_id",
         "x_position",
+        "y_position",
         "velocity",
+        "path_type",
         "accel_pedal",
         "brake_pedal",
         "net_acceleration",
@@ -399,7 +419,7 @@ if __name__ == "__main__":
         "--scenario",
         type=str,
         default=None,
-        choices=["scenario_01_brake", "scenario_02_shockwave", "scenario_03_low_friction"],
+        choices=["scenario_01_brake", "scenario_02_merge", "scenario_03_low_friction"],
     )
     args = parser.parse_args()
 

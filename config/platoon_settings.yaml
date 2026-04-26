@@ -51,17 +51,14 @@ scenario_01:
   lead_cruise_accel_pedal: 0.1
   lead_recovery_accel_pedal: 0.6
 scenario_02:
-  steady_end: 12
-  pulse_brake_end: 26
-  rebound_end: 40
-  traffic_wave_end: 64
-  episode_end: 80
+  steady_end: 20
+  merge_zone_end: 100
+  episode_end: 120
+  x_merge: 150.0
+  y_start: 3.5
   lead_cruise_speed: 15.0
-  lead_low_speed: 8.0
-  lead_high_speed: 16.5
-  lead_brake_pedal: 0.72
-  lead_cruise_accel_pedal: 0.1
-  lead_rebound_accel_pedal: 0.55
+  merge_success_bonus: 5.0
+  merge_efficiency_weight: 0.5
 scenario_03:
   steady_end: 10
   downhill_gain_end: 22

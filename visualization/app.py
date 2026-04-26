@@ -27,7 +27,7 @@ from config.settings import ROOT_DIR
 from environment.platoon_env import PlatoonEnv
 from visualization.renderer import build_road_svg
 
-AVAILABLE_SCENARIOS = ["scenario_01_brake", "scenario_02_shockwave", "scenario_03_low_friction"]
+AVAILABLE_SCENARIOS = ["scenario_01_brake", "scenario_02_merge", "scenario_03_low_friction"]
 
 
 @dataclass
@@ -388,7 +388,7 @@ def build_app() -> gr.Blocks:
                 value="scenario_01_brake",
                 label="Scenario",
             )
-            speed = gr.Slider(0.0, 0.5, value=0.08, step=0.01, label="Playback delay (s)")
+            speed = gr.Slider(0.0, 0.5, value=0.033, step=0.001, label="Playback delay (s) [30 FPS approx 0.033]")
             steps_per_frame = gr.Slider(1, 4, value=2, step=1, label="Simulation steps per frame")
             seed = gr.Number(value=123, precision=0, label="Episode seed")
 

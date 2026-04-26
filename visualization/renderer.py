@@ -32,6 +32,8 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
         "downhill_gain": "#fb7185",
         "low_friction": "#eab308",
         "cutin_emergency": "#dc2626",
+        "merge_zone": "#f59e0b",
+        "post_merge": "#22c55e",
     }
 
     lane_top = 95
@@ -58,6 +60,15 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
     chunks.append(
         f"<rect x='{margin}' y='{lane_top}' width='{width - 2 * margin}' height='{lane_height}' rx='12' fill='url(#road)' opacity='0.97'/>"
     )
+    
+    # Draw merging lane if in merge scenario
+    if state.get("scenario") == "scenario_02_merge":
+        # Merging road curve
+        chunks.append(
+            f"<path d='M {margin} {lane_top + 120} Q {width/2} {lane_top + 100}, {width - margin} {lane_top + lane_height/2}' "
+            f"fill='none' stroke='#1f2937' stroke-width='{lane_height}' stroke-linecap='round' opacity='0.9'/>"
+        )
+
     chunks.append(
         f"<line x1='{margin}' y1='{lane_top + lane_height / 2}' x2='{width - margin}' y2='{lane_top + lane_height / 2}' stroke='#f59e0b' stroke-width='3' stroke-dasharray='18 16'/>"
     )
@@ -84,7 +95,10 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
         x_pos = _scale_x(float(vehicle.get("x", 0.0)), world_min, world_max, width, margin)
         car_px_len = 56
         car_px_h = 24
-        y = lane_top + (lane_height - car_px_h) / 2
+        
+        # Scale y: y=0 is center of main lane, y=3.5 is center of merge lane (visually below)
+        y_offset_px = float(vehicle.get("y", 0.0)) * 20.0
+        y = lane_top + (lane_height - car_px_h) / 2 + y_offset_px
         fill = color_map.get(int(car_id), "#64748b")
 
         speed = float(vehicle.get("velocity", 0.0))

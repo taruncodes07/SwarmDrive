@@ -16,11 +16,11 @@ scenarios:
     max_steps: 350
     num_llm_agents: 2
     phases: [steady, brake_event, hold_low, recovery, steady_2]
-  - name: scenario_02_shockwave
-    description: "Moderate stop-and-go shockwave with rebound and oscillatory traffic wave"
-    max_steps: 80
+  - name: scenario_02_merge
+    description: "Coordinate lane merge - Agent 1 on main, Agent 2 on merging ramp"
+    max_steps: 120
     num_llm_agents: 2
-    phases: [steady, pulse_brake, rebound, traffic_wave, recover]
+    phases: [steady, merge_zone, post_merge]
   - name: scenario_03_low_friction
     description: "Complex downhill + low-friction emergency with delayed braking effectiveness"
     max_steps: 80

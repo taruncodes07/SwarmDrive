@@ -21,6 +21,8 @@ class RewardTerms:
     gap_tracking_bonus: float
     speed_tracking_bonus: float
     ttc_penalty: float
+    merge_success_bonus: float
+    merge_efficiency_reward: float
 
     @property
     def total(self) -> float:
@@ -35,6 +37,8 @@ class RewardTerms:
             + self.gap_tracking_bonus
             + self.speed_tracking_bonus
             + self.ttc_penalty
+            + self.merge_success_bonus
+            + self.merge_efficiency_reward
         )
 
 
@@ -106,6 +110,17 @@ class RewardModel:
                 hazard_multiplier = float(self.reward_cfg.get("hazard_ttc_multiplier", 1.5))
             ttc_penalty = -shortfall * float(self.reward_cfg.get("ttc_weight", 0.5)) * hazard_multiplier
 
+        # Merge specific rewards
+        merge_success_bonus = 0.0
+        merge_efficiency_reward = 0.0
+        if phase == "post_merge" and ego.path_type == "merge":
+            merge_success_bonus = float(self.reward_cfg.get("merge_success_bonus", 5.0))
+        
+        if phase == "merge_zone" and ego.path_type == "merge":
+            # Reward for maintaining speed while merging
+            speed_ratio = ego.velocity / max(front.velocity, 1.0)
+            merge_efficiency_reward = speed_ratio * float(self.reward_cfg.get("merge_efficiency_weight", 0.5))
+
         return RewardTerms(
             collision_penalty=collision_penalty,
             gap_error_penalty=gap_error_penalty,
@@ -117,6 +132,8 @@ class RewardModel:
             gap_tracking_bonus=gap_tracking_bonus,
             speed_tracking_bonus=speed_tracking_bonus,
             ttc_penalty=ttc_penalty,
+            merge_success_bonus=merge_success_bonus,
+            merge_efficiency_reward=merge_efficiency_reward,
         )
 
     @staticmethod

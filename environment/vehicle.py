@@ -9,7 +9,9 @@ import numpy as np
 class Vehicle:
     car_id: int
     x: float
-    velocity: float
+    y: float = 0.0
+    velocity: float = 0.0
+    path_type: str = "straight"  # "straight" or "merge"
     length: float = 4.5
     width: float = 1.8
     accel_pedal: float = 0.0
@@ -42,11 +44,13 @@ class Vehicle:
         self.x = self.x + (self.velocity * dt) + (0.5 * self.net_acceleration * dt * dt)
         self.velocity = float(np.clip(self.velocity + self.net_acceleration * dt, v_min, v_max))
 
-    def to_broadcast_packet(self) -> dict[str, float | int]:
+    def to_broadcast_packet(self) -> dict[str, Any]:
         return {
             "sender_id": int(self.car_id),
             "x_position": float(self.x),
+            "y_position": float(self.y),
             "velocity": float(self.velocity),
+            "path_type": str(self.path_type),
             "accel_pedal": float(self.accel_pedal),
             "brake_pedal": float(self.brake_pedal),
             "net_acceleration": float(self.net_acceleration),
