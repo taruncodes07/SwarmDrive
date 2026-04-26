@@ -1012,7 +1012,7 @@ def build_app() -> gr.Blocks:
                 ],
                 datatype=["number", "number", "number", "number", "number", "number", "number", "str"],
                 row_count=(5, "dynamic"),
-                column_count=8,
+                col_count=(8, "fixed"),
                 label="Broadcast Feed",
             )
 
