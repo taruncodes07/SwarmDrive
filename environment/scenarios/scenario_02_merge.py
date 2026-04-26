@@ -9,6 +9,9 @@ class Scenario02Merge:
         self.cfg = cfg
         self.x_merge = float(cfg.get("x_merge", 150.0))
         self.y_start = float(cfg.get("y_start", 3.5))
+        # Horizontal position where the ramp begins blending toward the main lane (m).
+        blend_off = float(cfg.get("merge_blend_start_offset_m", 38.0))
+        self.merge_start_x = self.x_merge - blend_off
 
     def get_phase(self, timestep: int) -> str:
         if timestep <= int(self.cfg["steady_end"]):
@@ -37,16 +40,14 @@ class Scenario02Merge:
         if vehicle.path_type == "straight":
             return 0.0
         
-        # Merge path: cosine interpolation from y_start to 0
-        # Starting merge at some distance before x_merge
-        merge_start_x = self.x_merge - 60.0
-        if vehicle.x < merge_start_x:
+        # Merge path: cosine interpolation from y_start to 0 along the approach segment
+        if vehicle.x < self.merge_start_x:
             return self.y_start
         if vehicle.x >= self.x_merge:
             return 0.0
-        
-        # Smooth transition
-        ratio = (vehicle.x - merge_start_x) / (self.x_merge - merge_start_x)
+
+        span = max(self.x_merge - self.merge_start_x, 1e-3)
+        ratio = (vehicle.x - self.merge_start_x) / span
         # Cosine interpolation for smoothness
         factor = 0.5 * (1.0 + math.cos(ratio * math.pi))
         return self.y_start * factor

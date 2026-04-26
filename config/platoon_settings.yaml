@@ -39,6 +39,18 @@ reward:
   ttc_threshold_s: 1.8
   ttc_weight: 0.45
   hazard_ttc_multiplier: 1.6
+  merge_lateral_ignore_gap_m: 1.85
+  merge_nominal_gap_when_offset_m: 20.0
+  merge_zipper_gap_min_m: 4.5
+  merge_zipper_gap_max_m: 24.0
+  merge_zipper_bonus: 0.32
+  merge_speed_match_bonus: 0.15
+  merge_speed_match_band_mps: 1.25
+  merge_rush_penalty: -0.55
+  merge_rush_speed_delta_mps: 2.2
+  merge_post_spacing_bonus: 0.45
+  merge_post_min_gap_m: 4.0
+  merge_approach_patience_bonus: 0.08
 scenario_01:
   steady_end: 18
   brake_end: 38
@@ -51,14 +63,18 @@ scenario_01:
   lead_cruise_accel_pedal: 0.1
   lead_recovery_accel_pedal: 0.6
 scenario_02:
-  steady_end: 20
-  merge_zone_end: 100
-  episode_end: 120
+  steady_end: 14
+  merge_zone_end: 52
+  episode_end: 80
   x_merge: 150.0
   y_start: 3.5
+  merge_blend_start_offset_m: 38.0
+  merge_distance_m: 40.0
+  approach_speed_mps: 15.0
+  lead_past_merge_m: 68.0
   lead_cruise_speed: 15.0
-  merge_success_bonus: 5.0
-  merge_efficiency_weight: 0.5
+  merge_success_bonus: 4.0
+  merge_efficiency_weight: 0.22
 scenario_03:
   steady_end: 10
   downhill_gain_end: 22

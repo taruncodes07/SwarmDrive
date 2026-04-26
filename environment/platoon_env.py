@@ -83,38 +83,79 @@ class PlatoonEnv(Environment):
             seed = int(self.settings["simulation"]["seed"])
         np.random.seed(seed)
 
-        init = self.settings["initial_conditions"]
         sim = self.settings["simulation"]
-        self.vehicles = {
-            0: Vehicle(
-                car_id=0,
-                x=float(init["car_0"]["x"]),
-                velocity=float(init["car_0"]["velocity"]),
-                path_type="straight",
-                length=float(sim["vehicle_length"]),
-                width=float(sim["vehicle_width"]),
-            ),
-            1: Vehicle(
-                car_id=1,
-                x=float(init["car_1"]["x"]),
-                velocity=float(init["car_1"]["velocity"]),
-                path_type="straight",
-                length=float(sim["vehicle_length"]),
-                width=float(sim["vehicle_width"]),
-            ),
-            2: Vehicle(
-                car_id=2,
-                x=float(init["car_2"]["x"]),
-                velocity=float(init["car_2"]["velocity"]),
-                path_type="merge" if self.scenario_name == "scenario_02_merge" else "straight",
-                length=float(sim["vehicle_length"]),
-                width=float(sim["vehicle_width"]),
-            ),
-        }
+        if self.scenario_name == "scenario_02_merge":
+            sc = self.settings["scenario_02"]
+            xm = float(sc["x_merge"])
+            d = float(sc.get("merge_distance_m", 40.0))
+            v0 = float(sc.get("approach_speed_mps", sc.get("lead_cruise_speed", 15.0)))
+            lead_off = float(sc.get("lead_past_merge_m", 68.0))
+            x_main = xm - d
+            x_lead = xm + lead_off
+            self.vehicles = {
+                0: Vehicle(
+                    car_id=0,
+                    x=x_lead,
+                    velocity=v0,
+                    path_type="straight",
+                    length=float(sim["vehicle_length"]),
+                    width=float(sim["vehicle_width"]),
+                ),
+                1: Vehicle(
+                    car_id=1,
+                    x=x_main,
+                    velocity=v0,
+                    path_type="straight",
+                    length=float(sim["vehicle_length"]),
+                    width=float(sim["vehicle_width"]),
+                ),
+                2: Vehicle(
+                    car_id=2,
+                    x=x_main,
+                    velocity=v0,
+                    path_type="merge",
+                    length=float(sim["vehicle_length"]),
+                    width=float(sim["vehicle_width"]),
+                ),
+            }
+        else:
+            init = self.settings["initial_conditions"]
+            self.vehicles = {
+                0: Vehicle(
+                    car_id=0,
+                    x=float(init["car_0"]["x"]),
+                    velocity=float(init["car_0"]["velocity"]),
+                    path_type="straight",
+                    length=float(sim["vehicle_length"]),
+                    width=float(sim["vehicle_width"]),
+                ),
+                1: Vehicle(
+                    car_id=1,
+                    x=float(init["car_1"]["x"]),
+                    velocity=float(init["car_1"]["velocity"]),
+                    path_type="straight",
+                    length=float(sim["vehicle_length"]),
+                    width=float(sim["vehicle_width"]),
+                ),
+                2: Vehicle(
+                    car_id=2,
+                    x=float(init["car_2"]["x"]),
+                    velocity=float(init["car_2"]["velocity"]),
+                    path_type="straight",
+                    length=float(sim["vehicle_length"]),
+                    width=float(sim["vehicle_width"]),
+                ),
+            }
 
         self.timestep = 0
         self.phase = self.scenario.get_phase(self.timestep)
         self.broadcast_layer.clear()
+
+        for vehicle in self.vehicles.values():
+            if hasattr(self.scenario, "get_y_position"):
+                vehicle.y = self.scenario.get_y_position(vehicle)
+            else:
+                vehicle.y = 0.0
 
         return {
             "agent_1": self._build_observation(agent_id=1),
@@ -173,27 +214,36 @@ class PlatoonEnv(Environment):
 
         rewards: dict[str, float] = {}
         infos: dict[str, dict[str, Any]] = {}
-        collision = False
+        collision = self._pairwise_collision_any()
 
         for agent_id in (1, 2):
             ego = self.vehicles[agent_id]
             front = self.vehicles[agent_id - 1]
-            gap = self.reward_model.gap_to_front(front, ego)
+            gap_raw = self.reward_model.gap_to_front(front, ego)
+            gap = self._effective_gap_for_merge(front, ego, gap_raw)
             desired_gap = self.reward_model.desired_gap(
                 ego_velocity=ego.velocity,
                 min_gap=self.min_desired_gap,
                 headway_seconds=self.headway_seconds,
             )
+            dist_merge = None
+            lateral_sep = abs(ego.y - front.y)
+            if hasattr(self.scenario, "x_merge"):
+                dist_merge = float(self.scenario.x_merge - ego.x)
             terms = self.reward_model.compute(
                 ego=ego,
                 front=front,
                 gap=gap,
                 desired_gap=desired_gap,
                 phase=self.phase,
+                scenario_name=self.scenario_name,
+                lateral_separation=lateral_sep,
+                dist_to_merge=dist_merge,
             )
             rewards[f"agent_{agent_id}"] = terms.total
             infos[f"agent_{agent_id}"] = {
-                "gap": gap,
+                "gap": gap_raw,
+                "gap_effective": gap,
                 "desired_gap": desired_gap,
                 "gap_error": gap - desired_gap,
                 "reward_terms": {
@@ -207,9 +257,15 @@ class PlatoonEnv(Environment):
                     "gap_tracking_bonus": terms.gap_tracking_bonus,
                     "speed_tracking_bonus": terms.speed_tracking_bonus,
                     "ttc_penalty": terms.ttc_penalty,
+                    "merge_success_bonus": terms.merge_success_bonus,
+                    "merge_efficiency_reward": terms.merge_efficiency_reward,
+                    "merge_zipper_bonus": terms.merge_zipper_bonus,
+                    "merge_speed_match_bonus": terms.merge_speed_match_bonus,
+                    "merge_rush_penalty": terms.merge_rush_penalty,
+                    "merge_post_spacing_bonus": terms.merge_post_spacing_bonus,
+                    "merge_approach_patience_bonus": terms.merge_approach_patience_bonus,
                 },
             }
-            collision = collision or gap <= 0.0
 
         for parse_log in parse_logs:
             self._append_metric(parse_log)
@@ -226,12 +282,13 @@ class PlatoonEnv(Environment):
         return obs, rewards, dones, infos
 
     def state(self) -> dict[str, Any]:
-        collision = False
-        for agent_id in (1, 2):
-            ego = self.vehicles[agent_id]
-            front = self.vehicles[agent_id - 1]
-            gap = self.reward_model.gap_to_front(front, ego)
-            collision = collision or gap <= 0.0
+        collision = self._pairwise_collision_any()
+        merge_layout = None
+        if self.scenario_name == "scenario_02_merge":
+            merge_layout = {
+                "x_merge": float(self.settings["scenario_02"]["x_merge"]),
+                "y_start": float(self.settings["scenario_02"].get("y_start", 3.5)),
+            }
         return {
             "timestep": self.timestep,
             "max_steps": self.max_steps,
@@ -239,6 +296,7 @@ class PlatoonEnv(Environment):
             "scenario": self.scenario_name,
             "collision": collision,
             "dynamics": self._dynamics,
+            "merge_layout": merge_layout,
             "vehicles": {
                 car_id: {
                     "x": vehicle.x,
@@ -249,6 +307,7 @@ class PlatoonEnv(Environment):
                     "net_acceleration": vehicle.net_acceleration,
                     "length": vehicle.length,
                     "width": vehicle.width,
+                    "path_type": vehicle.path_type,
                 }
                 for car_id, vehicle in self.vehicles.items()
             },
@@ -258,11 +317,39 @@ class PlatoonEnv(Environment):
     def close(self) -> None:
         return None
 
+    def _effective_gap_for_merge(self, front: Vehicle, ego: Vehicle, gap_raw: float) -> float:
+        if self.scenario_name != "scenario_02_merge":
+            return gap_raw
+        lat = abs(ego.y - front.y)
+        ignore = float(self.settings["reward"].get("merge_lateral_ignore_gap_m", 1.85))
+        nominal = float(self.settings["reward"].get("merge_nominal_gap_when_offset_m", 20.0))
+        if lat > ignore:
+            return max(gap_raw, nominal)
+        return gap_raw
+
+    @staticmethod
+    def _vehicles_collide_2d(a: Vehicle, b: Vehicle) -> bool:
+        lat = abs(a.y - b.y)
+        half_w = (a.width + b.width) * 0.5 * 0.92
+        if lat > half_w:
+            return False
+        overlap = min(a.x + a.length, b.x + b.length) - max(a.x, b.x)
+        return overlap > -0.4
+
+    def _pairwise_collision_any(self) -> bool:
+        ids = sorted(self.vehicles.keys())
+        for i, ia in enumerate(ids):
+            for ib in ids[i + 1 :]:
+                if self._vehicles_collide_2d(self.vehicles[ia], self.vehicles[ib]):
+                    return True
+        return False
+
     def _build_observation(self, agent_id: int) -> str:
         ego = self.vehicles[agent_id]
         front = self.vehicles[agent_id - 1]
 
-        gap_to_front = self.reward_model.gap_to_front(front, ego)
+        gap_raw = self.reward_model.gap_to_front(front, ego)
+        gap_to_front = self._effective_gap_for_merge(front, ego, gap_raw)
         # In merge scenario, we want to show distance to merge point as well
         merge_info = ""
         if hasattr(self.scenario, "x_merge"):
@@ -275,6 +362,9 @@ class PlatoonEnv(Environment):
             headway_seconds=self.headway_seconds,
         )
         gap_error = gap_to_front - desired_gap
+        gap_note = ""
+        if self.scenario_name == "scenario_02_merge" and gap_raw != gap_to_front:
+            gap_note = f"(raw longitudinal gap {gap_raw:.2f} m — lateral offset; effective gap for learning: {gap_to_front:.2f} m)\n"
         front_velocity = front.velocity if agent_id > 0 else -1.0
 
         phase = self.scenario.get_phase(self.timestep)
@@ -303,6 +393,7 @@ class PlatoonEnv(Environment):
             f"ego_brake_pedal: {ego.brake_pedal:.2f}\n"
             f"ego_x:           {ego.x:.2f} m\n"
             "ego_length: 4.5 m  |  ego_width: 1.8 m\n"
+            f"{gap_note}"
             f"gap_to_front:  {gap_to_front:.2f} m\n"
             f"desired_gap:   {desired_gap:.2f} m   (gap_error: {gap_error:+.2f} m)\n"
             f"front_velocity: {front_velocity:.2f} m/s\n"

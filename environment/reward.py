@@ -23,6 +23,11 @@ class RewardTerms:
     ttc_penalty: float
     merge_success_bonus: float
     merge_efficiency_reward: float
+    merge_zipper_bonus: float
+    merge_speed_match_bonus: float
+    merge_rush_penalty: float
+    merge_post_spacing_bonus: float
+    merge_approach_patience_bonus: float
 
     @property
     def total(self) -> float:
@@ -39,6 +44,11 @@ class RewardTerms:
             + self.ttc_penalty
             + self.merge_success_bonus
             + self.merge_efficiency_reward
+            + self.merge_zipper_bonus
+            + self.merge_speed_match_bonus
+            + self.merge_rush_penalty
+            + self.merge_post_spacing_bonus
+            + self.merge_approach_patience_bonus
         )
 
 
@@ -54,6 +64,10 @@ class RewardModel:
         gap: float,
         desired_gap: float,
         phase: str,
+        *,
+        scenario_name: str = "scenario_01_brake",
+        lateral_separation: float = 0.0,
+        dist_to_merge: float | None = None,
     ) -> RewardTerms:
         gap_error = gap - desired_gap
         collision_penalty = self.reward_cfg["collision_penalty"] if gap <= 0.0 else 0.0
@@ -106,20 +120,50 @@ class RewardModel:
             ttc_threshold = float(self.reward_cfg.get("ttc_threshold_s", 1.8))
             shortfall = max(0.0, ttc_threshold - ttc)
             hazard_multiplier = 1.0
-            if phase in {"pulse_brake", "traffic_wave", "low_friction", "cutin_emergency"}:
+            if phase in {"pulse_brake", "traffic_wave", "low_friction", "cutin_emergency", "merge_zone"}:
                 hazard_multiplier = float(self.reward_cfg.get("hazard_ttc_multiplier", 1.5))
             ttc_penalty = -shortfall * float(self.reward_cfg.get("ttc_weight", 0.5)) * hazard_multiplier
 
-        # Merge specific rewards
+        # Merge specific rewards (scenario_02_merge)
         merge_success_bonus = 0.0
         merge_efficiency_reward = 0.0
-        if phase == "post_merge" and ego.path_type == "merge":
-            merge_success_bonus = float(self.reward_cfg.get("merge_success_bonus", 5.0))
-        
-        if phase == "merge_zone" and ego.path_type == "merge":
-            # Reward for maintaining speed while merging
-            speed_ratio = ego.velocity / max(front.velocity, 1.0)
-            merge_efficiency_reward = speed_ratio * float(self.reward_cfg.get("merge_efficiency_weight", 0.5))
+        merge_zipper_bonus = 0.0
+        merge_speed_match_bonus = 0.0
+        merge_rush_penalty = 0.0
+        merge_post_spacing_bonus = 0.0
+        merge_approach_patience_bonus = 0.0
+
+        if scenario_name == "scenario_02_merge":
+            lat_ignore = float(self.reward_cfg.get("merge_lateral_ignore_gap_m", 1.85))
+            in_merge_corridor = lateral_separation <= lat_ignore
+            zip_min = float(self.reward_cfg.get("merge_zipper_gap_min_m", 4.5))
+            zip_max = float(self.reward_cfg.get("merge_zipper_gap_max_m", 24.0))
+            spd_band = float(self.reward_cfg.get("merge_speed_match_band_mps", 1.25))
+
+            if phase == "merge_zone" and in_merge_corridor and zip_min <= gap <= zip_max:
+                closing = ego.velocity - front.velocity
+                if closing <= 0.8:
+                    merge_zipper_bonus = float(self.reward_cfg.get("merge_zipper_bonus", 0.32))
+                rush_d = float(self.reward_cfg.get("merge_rush_speed_delta_mps", 2.2))
+                if gap < zip_min + 2.0 and closing > rush_d:
+                    merge_rush_penalty = float(self.reward_cfg.get("merge_rush_penalty", -0.55))
+
+            if phase == "merge_zone" and ego.path_type == "merge" and in_merge_corridor:
+                dv = abs(ego.velocity - front.velocity)
+                if dv <= spd_band:
+                    merge_speed_match_bonus = float(self.reward_cfg.get("merge_speed_match_bonus", 0.15))
+                w_eff = float(self.reward_cfg.get("merge_efficiency_weight", 0.22))
+                merge_efficiency_reward = w_eff * float(np.clip(1.0 - dv / max(spd_band * 2.5, 0.1), 0.0, 1.0))
+
+            if phase == "steady" and dist_to_merge is not None and dist_to_merge > 12.0:
+                if ego.path_type == "merge" and ego.brake_pedal > 0.15 and ego.velocity <= front.velocity + 0.5:
+                    merge_approach_patience_bonus = float(self.reward_cfg.get("merge_approach_patience_bonus", 0.08))
+
+            if phase == "post_merge" and ego.path_type == "merge" and gap > 0.0:
+                merge_success_bonus = float(self.reward_cfg.get("merge_success_bonus", 4.0))
+                post_min = float(self.reward_cfg.get("merge_post_min_gap_m", 4.0))
+                if gap >= post_min:
+                    merge_post_spacing_bonus = float(self.reward_cfg.get("merge_post_spacing_bonus", 0.45))
 
         return RewardTerms(
             collision_penalty=collision_penalty,
@@ -134,6 +178,11 @@ class RewardModel:
             ttc_penalty=ttc_penalty,
             merge_success_bonus=merge_success_bonus,
             merge_efficiency_reward=merge_efficiency_reward,
+            merge_zipper_bonus=merge_zipper_bonus,
+            merge_speed_match_bonus=merge_speed_match_bonus,
+            merge_rush_penalty=merge_rush_penalty,
+            merge_post_spacing_bonus=merge_post_spacing_bonus,
+            merge_approach_patience_bonus=merge_approach_patience_bonus,
         )
 
     @staticmethod
