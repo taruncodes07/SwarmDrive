@@ -1,15 +1,13 @@
-# ~1-hour SFT+RL demo for all three scenarios (tune --base-model and counts if you miss the budget).
-# Requires: pip install -r requirements.txt; .env with HF_TOKEN and HF_USERNAME for Hub upload.
-# README recommends WSL/Linux for training; on Windows native, CPU-only runs may exceed 1h on 1.5B.
+# Target: ~1 hour wall-clock for export + SFT + RL on all three scenarios (tight on slower ~25–30 s/SFT-step rigs).
+# Telemetry: [SFT] % / steps left / elapsed / ETA; [RL] same + episodes + env steps; [pipeline] phase totals.
+# If CUDA OOM, use --batch-size 1 and --sft-max-samples 64 in the python line below.
 
 $ErrorActionPreference = "Stop"
-# Avoid trl/transformers reading UTF-8 templates as cp1252 on Windows.
 $env:PYTHONUTF8 = "1"
+$env:PYTHONUNBUFFERED = "1"
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
 $repoRoot = (Get-Location).Path
-# Local weights: set MODEL_PATH in .env or environment to the folder that contains config.json
-# (e.g. ...\checkpoints\Qwen2.5-1.5B-Instruct). Otherwise we probe a common layout under checkpoints\.
 $candidates = @()
 if ($env:MODEL_PATH -and $env:MODEL_PATH.Trim().Length -gt 0) {
     $candidates += $env:MODEL_PATH.Trim().Trim('"').Trim("'")
@@ -28,26 +26,30 @@ foreach ($p in $candidates) {
 }
 Write-Host "Base model path: $baseModel"
 
-python -m training.export_heuristic_sft --seeds 4
+python -m training.export_heuristic_sft --seeds 2
 
-# RTX 5060 (CUDA): local 1.5B + LoRA is fine; raise --batch-size to 2 if VRAM allows OOM-free runs.
-# CPU: switch hub id to Qwen/Qwen2.5-0.5B-Instruct and cut --sft-max-samples / --episodes.
-python -m training.train_local --run-all `
+# SFT: few rows + short ctx + larger microbatch => very few optimizer steps.
+# RL: 6 episodes = two full cycles over the three scenarios; skip mid-run eval (999); one GRPO batch at ep 6.
+python -u -m training.train_local --run-all `
   --report-to none `
+  --live-telemetry `
+  --rl-env-log-every 5 `
   --base-model "$baseModel" `
-  --sft-max-samples 600 `
+  --sft-max-samples 96 `
   --epochs 1 `
-  --sft-warmup-steps 12 `
-  --batch-size 1 `
+  --sft-warmup-steps 4 `
+  --sft-logging-steps 2 `
+  --sft-save-steps 20 `
+  --batch-size 2 `
   --grad-accum 4 `
-  --max-seq-len 1024 `
-  --max-new-tokens 24 `
-  --episodes 18 `
-  --eval-every 9 `
-  --eval-max-seeds 3 `
-  --sft-save-steps 50 `
-  --checkpoint-every 3 `
+  --max-seq-len 512 `
+  --max-new-tokens 20 `
+  --episodes 6 `
+  --eval-every 999 `
+  --eval-max-seeds 1 `
+  --checkpoint-every 2 `
   --grpo-update-every 6 `
   --group-size 2 `
+  --max-prompts-per-update 64 `
   --lr-sft 2e-4 `
   --lr-rl 5e-6

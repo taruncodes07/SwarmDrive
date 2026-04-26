@@ -31,3 +31,25 @@
 {"event": "evaluation", "episode": 16, "collision_rate": 1.0, "mean_episode_reward": -97.29586000000022, "mean_gap_error_final": 15.148000000000053, "mean_jerk": 0.0, "parse_failure_rate": 0.22586206896551725}
 {"event": "parse_failure", "timestep": 0, "agent_id": 1, "raw_action": "I am malformed output", "resolution": "default_coast"}
 {"event": "constraint_violation", "timestep": 0, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: 0.30\nbrake_pedal: 0.70", "resolution": "set_accel_to_zero_keep_brake"}
+{"event": "parse_failure", "timestep": 0, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 0, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 1, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 1, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 2, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 2, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 3, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 3, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 4, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 4, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 5, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 5, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 6, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 6, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 7, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 7, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 8, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 8, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 9, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 9, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 10, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 10, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}

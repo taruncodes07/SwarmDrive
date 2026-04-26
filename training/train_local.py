@@ -159,6 +159,12 @@ def parse_args() -> argparse.Namespace:
         help="Use only the first N eval seeds from config (0 = all). Lower for faster multi-scenario eval.",
     )
     parser.add_argument(
+        "--max-prompts-per-update",
+        type=int,
+        default=0,
+        help="Cap RL prompts fed into each GRPO/update (0 = use config training_runtime.max_prompts_per_update)",
+    )
+    parser.add_argument(
         "--report-to",
         type=str,
         default="auto",
@@ -166,6 +172,18 @@ def parse_args() -> argparse.Namespace:
         help="Experiment tracking backend",
     )
     parser.add_argument("--reset-metrics", action="store_true")
+    parser.add_argument(
+        "--live-telemetry",
+        action="store_true",
+        help="Log every optimizer step during SFT/RL-update/GRPO (%%/ETA), plus RL env progress every few sim steps. "
+        "Run with PYTHONUNBUFFERED=1 or python -u for line-buffered console output.",
+    )
+    parser.add_argument(
+        "--rl-env-log-every",
+        type=int,
+        default=5,
+        help="With --live-telemetry, print RL env rollout progress every N simulation steps (0 = off)",
+    )
     return parser.parse_args()
 
 
@@ -191,16 +209,17 @@ def _format_hms(total_seconds: float) -> str:
     return f"{s}s"
 
 
-def _trainer_progress_callback(label: str) -> Any:
+def _trainer_progress_callback(label: str, log_every_n: int = 5) -> Any:
     from transformers import TrainerCallback
+
+    _interval = max(1, int(log_every_n))
 
     class _ProgressCallback(TrainerCallback):
         def on_train_begin(self, args: Any, state: Any, control: Any, **kwargs: Any) -> None:
             self._t0 = time.perf_counter()
             ms = int(getattr(state, "max_steps", -1) or -1)
             print(
-                f"[{label}] started | max_optimizer_steps={ms} "
-                f"| progress log every {args.logging_steps} step(s)",
+                f"[{label}] started | max_optimizer_steps={ms} | progress log every {_interval} optimizer step(s)",
                 flush=True,
             )
 
@@ -209,8 +228,7 @@ def _trainer_progress_callback(label: str) -> Any:
             step = int(state.global_step)
             if ms <= 0:
                 return
-            ls = max(1, int(getattr(args, "logging_steps", 1) or 1))
-            if step % ls != 0:
+            if step % _interval != 0:
                 return
             elapsed = time.perf_counter() - self._t0
             left = max(0, ms - step)
@@ -466,6 +484,14 @@ def run_sft(args: argparse.Namespace) -> None:
     model, tokenizer = load_base_model_and_tokenizer(args.base_model, args.max_seq_len)
 
     report_to = resolve_report_to(args.report_to)
+    live = bool(getattr(args, "live_telemetry", False))
+    sft_log_int = 1 if live else max(1, int(args.sft_logging_steps))
+    if live:
+        print(
+            "[SFT] --live-telemetry: logging each optimizer step (%% / ETA / steps left) + HF loss each step.",
+            flush=True,
+        )
+
     if args.sft_save_steps > 0:
         save_kwargs: dict[str, Any] = {
             "save_strategy": "steps",
@@ -488,7 +514,7 @@ def run_sft(args: argparse.Namespace) -> None:
         num_train_epochs=args.epochs,
         warmup_steps=args.sft_warmup_steps,
         lr_scheduler_type="cosine",
-        logging_steps=args.sft_logging_steps,
+        logging_steps=sft_log_int,
         disable_tqdm=True,
         bf16=torch.cuda.is_available(),
         fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
@@ -500,7 +526,7 @@ def run_sft(args: argparse.Namespace) -> None:
         "model": model,
         "train_dataset": dataset,
         "args": training_args,
-        "callbacks": [_trainer_progress_callback("SFT")],
+        "callbacks": [_trainer_progress_callback("SFT", log_every_n=sft_log_int)],
     }
     sft_sig = inspect.signature(SFTTrainer.__init__)
     if "tokenizer" in sft_sig.parameters:
@@ -600,6 +626,7 @@ def apply_grpo_style_update(
     max_seq_len: int,
     batch_size: int,
     grad_accum: int,
+    live_telemetry: bool = False,
 ) -> None:
     torch = _import_torch()
     stack = _import_training_stack()
@@ -614,13 +641,16 @@ def apply_grpo_style_update(
     dataset = Dataset.from_list(data)
 
     report_to = resolve_report_to(os.getenv("REPORT_TO", "auto"))
+    log_n = 1 if live_telemetry else 5
+    if live_telemetry:
+        print("[RL-update] live telemetry: per-optimizer-step progress + loss.", flush=True)
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=grad_accum,
         learning_rate=lr,
         num_train_epochs=1,
-        logging_steps=5,
+        logging_steps=log_n,
         save_strategy="no",
         disable_tqdm=True,
         report_to=report_to,
@@ -632,7 +662,7 @@ def apply_grpo_style_update(
         "model": model,
         "train_dataset": dataset,
         "args": training_args,
-        "callbacks": [_trainer_progress_callback("RL-update")],
+        "callbacks": [_trainer_progress_callback("RL-update", log_every_n=log_n)],
     }
     sft_sig = inspect.signature(SFTTrainer.__init__)
     if "tokenizer" in sft_sig.parameters:
@@ -657,6 +687,7 @@ def try_native_grpo_update(
     batch_size: int,
     grad_accum: int,
     group_size: int,
+    live_telemetry: bool = False,
 ) -> tuple[bool, str]:
     if not prompts:
         return False, "no_prompts"
@@ -673,6 +704,9 @@ def try_native_grpo_update(
         return [score_action_from_prompt(prompt, completion) for prompt, completion in zip(prompts, completions)]
 
     try:
+        log_n = 1 if live_telemetry else 5
+        if live_telemetry:
+            print("[RL-GRPO] live telemetry: per-step logging where supported by TRL.", flush=True)
         grpo_args = GRPOConfig(
             output_dir=str(output_dir),
             learning_rate=lr,
@@ -680,18 +714,25 @@ def try_native_grpo_update(
             gradient_accumulation_steps=grad_accum,
             num_generations=max(2, group_size),
             max_completion_length=64,
-            logging_steps=5,
+            logging_steps=log_n,
             disable_tqdm=True,
             report_to=[],
         )
 
-        trainer = GRPOTrainer(
-            model=model,
-            reward_funcs=reward_fn,
-            train_dataset=prompt_dataset,
-            args=grpo_args,
-            processing_class=tokenizer,
-        )
+        grpo_trainer_kw: dict[str, Any] = {
+            "model": model,
+            "reward_funcs": reward_fn,
+            "train_dataset": prompt_dataset,
+            "args": grpo_args,
+            "processing_class": tokenizer,
+        }
+        if live_telemetry:
+            grpo_trainer_kw["callbacks"] = [_trainer_progress_callback("RL-GRPO", log_every_n=log_n)]
+        try:
+            trainer = GRPOTrainer(**grpo_trainer_kw)
+        except TypeError:
+            grpo_trainer_kw.pop("callbacks", None)
+            trainer = GRPOTrainer(**grpo_trainer_kw)
         trainer.train()
     except Exception as exc:
         return False, f"grpo_runtime_error:{exc}"
@@ -705,6 +746,10 @@ def run_episode(
     episode_seed: int,
     temperature: float,
     collect_prompts: bool,
+    *,
+    env_log_every: int = 0,
+    rl_episode_num: int = 0,
+    scenario_label: str = "",
 ) -> tuple[EpisodeMetrics, list[str]]:
     obs = env.reset(seed=episode_seed)
     done = False
@@ -746,6 +791,16 @@ def run_episode(
         jerk_values.append(abs(float(env.state()["vehicles"][2]["net_acceleration"])))
 
         step_count += 1
+        if env_log_every > 0 and step_count % env_log_every == 0:
+            cap = int(getattr(env, "max_steps", 0) or 0)
+            pct_e = 100.0 * step_count / max(cap, 1)
+            r_inst = (rewards["agent_1"] + rewards["agent_2"]) / 2.0
+            scen = (scenario_label or getattr(env, "scenario_name", ""))[:28]
+            print(
+                f"[RL-env] ep={rl_episode_num} {scen} | sim_step {step_count}/{max(cap, 1)} "
+                f"({pct_e:.1f}% of horizon) phase={env.phase} step_mean_r={r_inst:.3f}",
+                flush=True,
+            )
         done = bool(dones["agent_1"])
 
     vehicle_state = env.state()["vehicles"]
@@ -814,21 +869,26 @@ def plot_training_curves(metrics_path: Path, reward_png: Path, loss_png: Path) -
     if not metrics_path.exists():
         return
 
-    episodes: list[int] = []
-    rewards: list[float] = []
-    losses: list[float] = []
+    # metrics.jsonl can contain multiple runs appended together (duplicate episodes, out-of-order),
+    # which makes a line plot look "wrong". Keep the latest episode_end record per episode and sort.
+    by_episode: dict[int, tuple[float, float]] = {}
 
     with metrics_path.open("r", encoding="utf-8") as handle:
         for line in handle:
             item = json.loads(line)
             if item.get("event") != "episode_end":
                 continue
-            episodes.append(int(item["episode"]))
-            rewards.append(float(item["mean_reward"]))
-            losses.append(float(item.get("proxy_loss", max(0.0, -item["mean_reward"] / 300.0))))
+            ep = int(item["episode"])
+            mean_r = float(item["mean_reward"])
+            proxy_loss = float(item.get("proxy_loss", max(0.0, -mean_r / 300.0)))
+            by_episode[ep] = (mean_r, proxy_loss)
 
-    if not episodes:
+    if not by_episode:
         return
+
+    episodes = sorted(by_episode.keys())
+    rewards = [by_episode[e][0] for e in episodes]
+    losses = [by_episode[e][1] for e in episodes]
 
     reward_png.parent.mkdir(parents=True, exist_ok=True)
 
@@ -890,17 +950,27 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
     if args.eval_max_seeds > 0:
         eval_seeds = eval_seeds[: args.eval_max_seeds]
     max_prompts_per_update = int(settings.get("training_runtime", {}).get("max_prompts_per_update", 400))
+    if getattr(args, "max_prompts_per_update", 0) and int(args.max_prompts_per_update) > 0:
+        max_prompts_per_update = int(args.max_prompts_per_update)
     prompt_buffer: list[str] = []
 
     low_collision_windows = 0
     episode_wall_times: list[float] = []
     total_env_steps = 0
     rl_t0 = time.perf_counter()
+    live = bool(getattr(args, "live_telemetry", False))
+    env_log_n = int(getattr(args, "rl_env_log_every", 5) or 0) if live else 0
     print(
         f"[RL] started | episodes planned={args.episodes} | progress after each episode: "
         f"%%, elapsed, ETA, episodes left, sim env steps (approx remaining)",
         flush=True,
     )
+    if live:
+        print(
+            f"[RL] --live-telemetry: SFT-style lines during GRPO/RL-update; "
+            f"env lines every {env_log_n} sim step(s) (set --rl-env-log-every 0 to disable env lines).",
+            flush=True,
+        )
 
     for episode in range(1, args.episodes + 1):
         ep_iter_start = time.perf_counter()
@@ -917,6 +987,9 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
             episode_seed=episode_seed,
             temperature=0.35,
             collect_prompts=True,
+            env_log_every=env_log_n,
+            rl_episode_num=episode,
+            scenario_label=scenario_name,
         )
         metrics.episode = episode
         total_env_steps += metrics.steps
@@ -945,6 +1018,7 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
                 batch_size=args.batch_size,
                 grad_accum=args.grad_accum,
                 group_size=args.group_size,
+                live_telemetry=live,
             )
 
             selected_count = 0
@@ -965,6 +1039,7 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
                     max_seq_len=args.max_seq_len,
                     batch_size=args.batch_size,
                     grad_accum=args.grad_accum,
+                    live_telemetry=live,
                 )
             print(
                 f"[RL] episode {episode} update done mode={native_mode} native={native_ok} "
