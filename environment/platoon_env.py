@@ -226,15 +226,23 @@ class PlatoonEnv(Environment):
         return obs, rewards, dones, infos
 
     def state(self) -> dict[str, Any]:
+        collision = False
+        for agent_id in (1, 2):
+            ego = self.vehicles[agent_id]
+            front = self.vehicles[agent_id - 1]
+            gap = self.reward_model.gap_to_front(front, ego)
+            collision = collision or gap <= 0.0
         return {
             "timestep": self.timestep,
             "max_steps": self.max_steps,
             "phase": self.phase,
             "scenario": self.scenario_name,
+            "collision": collision,
             "dynamics": self._dynamics,
             "vehicles": {
                 car_id: {
                     "x": vehicle.x,
+                    "y": vehicle.y,
                     "velocity": vehicle.velocity,
                     "accel_pedal": vehicle.accel_pedal,
                     "brake_pedal": vehicle.brake_pedal,
