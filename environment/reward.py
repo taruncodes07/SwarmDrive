@@ -104,11 +104,15 @@ class RewardModel:
         jerk = abs((ego.net_acceleration - ego.last_net_acceleration) / self.dt)
         jerk_penalty = -min(jerk, self.reward_cfg["jerk_cap"]) * self.reward_cfg["jerk_weight"]
 
-        recovery_bonus = (
-            self.reward_cfg["steady2_recovery_bonus"]
-            if phase == "steady_2" and abs(gap_error) < 1.0
-            else 0.0
-        )
+        recovery_bonus = 0.0
+        if phase == "steady_2" and abs(gap_error) < 1.0:
+            recovery_bonus = float(self.reward_cfg.get("steady2_recovery_bonus", 3.0))
+        if scenario_name == "scenario_01_brake" and phase == "recovery":
+            if ego.velocity < front.velocity - 0.25 and gap_error > -1.5:
+                recovery_bonus = max(
+                    recovery_bonus,
+                    float(self.reward_cfg.get("recovery_catchup_bonus", 0.32)),
+                )
 
         comfort_penalty = (
             self.reward_cfg["comfort_penalty"]
@@ -184,11 +188,16 @@ class RewardModel:
                 if ego.path_type == "merge" and ego.brake_pedal > 0.15 and ego.velocity <= front.velocity + 0.5:
                     merge_approach_patience_bonus = float(self.reward_cfg.get("merge_approach_patience_bonus", 0.08))
 
-            if phase == "post_merge" and ego.path_type == "merge" and gap > 0.0:
-                merge_success_bonus = float(self.reward_cfg.get("merge_success_bonus", 4.0))
+            if phase == "post_merge" and gap > 0.0:
                 post_min = float(self.reward_cfg.get("merge_post_min_gap_m", 4.0))
-                if gap >= post_min:
-                    merge_post_spacing_bonus = float(self.reward_cfg.get("merge_post_spacing_bonus", 0.45))
+                if ego.path_type == "merge":
+                    if gap >= post_min:
+                        merge_post_spacing_bonus = float(self.reward_cfg.get("merge_post_spacing_bonus", 0.45))
+                    if ego.velocity < front.velocity - 0.3 and gap_error > -2.0:
+                        merge_success_bonus = float(self.reward_cfg.get("post_merge_catchup_bonus", 0.22))
+                elif ego.path_type == "straight":
+                    if ego.velocity < front.velocity - 0.35 and gap_error > -2.0:
+                        merge_success_bonus = float(self.reward_cfg.get("post_merge_main_catchup_bonus", 0.18))
 
         ambulance_clear_lane_bonus = 0.0
         ambulance_blocking_penalty = 0.0

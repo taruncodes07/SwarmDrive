@@ -86,6 +86,7 @@ class PlatoonEnv(Environment):
             "road_grip": 1.0,
             "road_grade": 0.0,
         }
+        self._task_ok_streak = 0
 
     def _build_scenario(self, scenario_name: str) -> Any:
         if scenario_name == "scenario_01_brake":
@@ -255,6 +256,7 @@ class PlatoonEnv(Environment):
         self.timestep = 0
         self.phase = self._compute_phase()
         self.broadcast_layer.clear()
+        self._task_ok_streak = 0
 
         for vehicle in self.vehicles.values():
             if self.scenario_name == "scenario_03_ambulance":
@@ -311,7 +313,7 @@ class PlatoonEnv(Environment):
             raw_action = actions.get(f"agent_{agent_id}", "")
             agent_prev_lane[agent_id] = self.vehicles[agent_id].lane
             accel, brake, parse_info = self._parse_action(raw_action, agent_id)
-            if self.follower_safety_clamp:
+            if self.follower_safety_clamp and not self._should_skip_follower_safety_clamp(agent_id):
                 accel, brake = self._safety_clamp_follower(agent_id, accel, brake)
             parsed_actions[agent_id] = (accel, brake)
             if parse_info is not None:
@@ -407,12 +409,47 @@ class PlatoonEnv(Environment):
                 },
             }
 
+        task_snapshot = self._episode_task_success_snapshot()
+        if task_snapshot:
+            self._task_ok_streak += 1
+        else:
+            self._task_ok_streak = 0
+        hold = 1
+        if self.scenario_name == "scenario_02_merge":
+            hold = max(1, int(self.settings["scenario_02"].get("merge_task_hold_steps", 4)))
+        elif self.scenario_name == "scenario_03_ambulance":
+            hold = max(1, int(self.settings["scenario_03"].get("ambulance_task_hold_steps", 2)))
+        task_success = self._task_ok_streak >= hold
+
+        if task_success and not collision:
+            if self.scenario_name == "scenario_02_merge":
+                completion_total = float(
+                    self.settings["scenario_02"].get(
+                        "merge_episode_completion_bonus",
+                        self.settings["scenario_02"].get("merge_success_bonus", 4.0),
+                    )
+                )
+            elif self.scenario_name == "scenario_03_ambulance":
+                completion_total = float(self.settings["scenario_03"].get("ambulance_episode_completion_bonus", 3.0))
+            else:
+                completion_total = 0.0
+            if completion_total > 0.0:
+                half = completion_total * 0.5
+                for aid in (1, 2):
+                    k = f"agent_{aid}"
+                    rewards[k] += half
+                    infos[k]["reward_terms"]["task_completion_bonus"] = half
+
         for parse_log in parse_logs:
             self._append_metric(parse_log)
 
         self.timestep += 1
         self.phase = self._compute_phase()
-        done = collision or self.timestep >= self.max_steps
+        done = collision or task_success or self.timestep >= self.max_steps
+        if done:
+            end_reason = "collision" if collision else ("task_success" if task_success else "max_steps")
+            for aid in (1, 2):
+                infos[f"agent_{aid}"]["episode_end_reason"] = end_reason
 
         obs = {
             "agent_1": self._build_observation(agent_id=1),
@@ -607,6 +644,60 @@ class PlatoonEnv(Environment):
             return max(gap_raw, nominal)
         return gap_raw
 
+    def _should_skip_follower_safety_clamp(self, agent_id: int) -> bool:
+        """Do not cap throttle when catching a faster lead after recovery / post-merge."""
+        ego = self.vehicles[agent_id]
+        front = self.vehicles[agent_id - 1]
+        gap_raw = self.reward_model.gap_to_front(front, ego)
+        gap = self._effective_gap_for_merge(front, ego, gap_raw)
+        desired = self.reward_model.desired_gap(
+            ego_velocity=ego.velocity,
+            min_gap=self.min_desired_gap,
+            headway_seconds=self.headway_seconds,
+        )
+        gap_error = gap - desired
+        if ego.velocity >= front.velocity - 0.12:
+            return False
+        if gap_error <= -2.0:
+            return False
+        if self.scenario_name == "scenario_01_brake" and self.phase in {"recovery", "steady_2"}:
+            return True
+        if self.scenario_name == "scenario_02_merge" and self.phase == "post_merge":
+            return True
+        return False
+
+    def _merge_episode_success_now(self) -> bool:
+        if self.scenario_name != "scenario_02_merge":
+            return False
+        if self.scenario.get_phase(self.timestep) != "post_merge":
+            return False
+        sc = self.settings["scenario_02"]
+        xm = float(sc["x_merge"])
+        y_tol = float(sc.get("merge_complete_y_tol_m", 0.55))
+        spd_tol = float(sc.get("merge_complete_spd_tol_mps", 2.25))
+        gap_min = float(sc.get("merge_complete_gap_min_m", 2.5))
+        v0, v1, v2 = self.vehicles[0], self.vehicles[1], self.vehicles[2]
+        if abs(v2.y) > y_tol:
+            return False
+        if v2.x < xm - 0.8:
+            return False
+        g2 = self.reward_model.gap_to_front(v1, v2)
+        g1 = self.reward_model.gap_to_front(v0, v1)
+        if g2 < gap_min or g1 < 0.8:
+            return False
+        if abs(v2.velocity - v1.velocity) > spd_tol:
+            return False
+        if abs(v1.velocity - v0.velocity) > spd_tol * 1.25:
+            return False
+        return True
+
+    def _episode_task_success_snapshot(self) -> bool:
+        if self.scenario_name == "scenario_02_merge":
+            return self._merge_episode_success_now()
+        if self.scenario_name == "scenario_03_ambulance":
+            return Scenario03Ambulance._ambulance_cleared_both_followers(self.vehicles)
+        return False
+
     @staticmethod
     def _vehicles_collide_2d(a: Vehicle, b: Vehicle) -> bool:
         lat = abs(a.y - b.y)
@@ -705,10 +796,23 @@ class PlatoonEnv(Environment):
                 "(optional; default stay). At most one discrete lane shift intent per step.\n"
             )
 
+        task_hint = ""
+        if self.scenario_name == "scenario_01_brake" and phase in {"recovery", "steady_2"}:
+            task_hint = (
+                "task_hint: Lead vehicle is regaining cruise speed — match its speed and restore gap; "
+                "use throttle when gap_error is not strongly negative (avoid dragging brakes).\n"
+            )
+        elif self.scenario_name == "scenario_02_merge" and phase == "post_merge":
+            task_hint = (
+                "task_hint: After merge, track the main-lane front vehicle — if you are slower, "
+                "accelerate modestly to close the speed gap once spacing is safe.\n"
+            )
+
         return (
             f"[OBSERVATION - Agent {agent_id} - Step {self.timestep}]\n"
             f"scenario_name: {self.scenario_name}\n"
             f"scenario_phase: {phase}\n"
+            f"{task_hint}"
             f"{lane_info}"
             f"{amb_hint}"
             f"{merge_info}"
