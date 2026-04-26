@@ -57,20 +57,37 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
     chunks.append("</defs>")
     chunks.append("<rect x='0' y='0' width='100%' height='100%' fill='url(#sky)'/>")
     chunks.append(f"<rect x='0' y='70' width='100%' height='4' fill='{phase_color}' opacity='0.75'/>")
+    # Calculate camera offset (center on lead vehicle or average)
+    avg_x = sum(float(v.get("x", 0.0)) for v in state.get("vehicles", {}).values()) / max(len(state.get("vehicles", {})), 1)
+    view_width_m = 120.0
+    world_min = avg_x - view_width_m / 2
+    world_max = avg_x + view_width_m / 2
+
+    # Draw scrolling road markers
+    dash_size = 20
+    gap_size = 20
+    period = dash_size + gap_size
+    # Offset based on world coordinate to simulate movement
+    offset = (avg_x * 10) % period 
+
     chunks.append(
         f"<rect x='{margin}' y='{lane_top}' width='{width - 2 * margin}' height='{lane_height}' rx='12' fill='url(#road)' opacity='0.97'/>"
     )
     
     # Draw merging lane if in merge scenario
     if state.get("scenario") == "scenario_02_merge":
-        # Merging road curve
+        # Merging road curve - also relative to camera
+        merge_start_px = _scale_x(150.0 - 60.0, world_min, world_max, width, margin)
+        merge_end_px = _scale_x(150.0, world_min, world_max, width, margin)
+        
         chunks.append(
-            f"<path d='M {margin} {lane_top + 120} Q {width/2} {lane_top + 100}, {width - margin} {lane_top + lane_height/2}' "
+            f"<path d='M {merge_start_px} {lane_top + 120} Q {(merge_start_px + merge_end_px)/2} {lane_top + 100}, {merge_end_px} {lane_top + lane_height/2}' "
             f"fill='none' stroke='#1f2937' stroke-width='{lane_height}' stroke-linecap='round' opacity='0.9'/>"
         )
 
     chunks.append(
-        f"<line x1='{margin}' y1='{lane_top + lane_height / 2}' x2='{width - margin}' y2='{lane_top + lane_height / 2}' stroke='#f59e0b' stroke-width='3' stroke-dasharray='18 16'/>"
+        f"<line x1='{margin}' y1='{lane_top + lane_height / 2}' x2='{width - margin}' y2='{lane_top + lane_height / 2}' "
+        f"stroke='#f59e0b' stroke-width='3' stroke-dasharray='{dash_size} {gap_size}' stroke-dashoffset='{offset}'/>"
     )
     chunks.append(f"<text x='{margin}' y='36' font-size='22' font-family='Verdana' fill='#0f172a'>{title}</text>")
     chunks.append(
@@ -87,12 +104,24 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
     )
 
     if state.get("collision"):
-        chunks.append("<rect x='0' y='0' width='100%' height='100%' fill='#dc2626' opacity='0.16'/>")
-        chunks.append("<text x='760' y='35' font-size='20' font-family='Verdana' fill='#b91c1c'>COLLISION</text>")
+        chunks.append("<rect x='0' y='0' width='100%' height='100%' fill='#dc2626' opacity='0.25'/>")
+        chunks.append(
+            f"<text x='{width/2}' y='{height/2}' font-size='48' font-family='Verdana' fill='#ffffff' text-anchor='middle' font-weight='bold' filter='drop-shadow(0 4px 4px rgba(0,0,0,0.5))'>💥 CRASHED</text>"
+        )
+    elif state.get("done") or (state.get("timestep", 0) >= state.get("max_steps", 80) - 1):
+        chunks.append("<rect x='0' y='0' width='100%' height='100%' fill='#22c55e' opacity='0.15'/>")
+        chunks.append(
+            f"<text x='{width/2}' y='{height/2}' font-size='48' font-family='Verdana' fill='#15803d' text-anchor='middle' font-weight='bold'>✅ SCENARIO PASSED</text>"
+        )
 
     for car_id in sorted(vehicles.keys()):
         vehicle = vehicles[car_id]
         x_pos = _scale_x(float(vehicle.get("x", 0.0)), world_min, world_max, width, margin)
+        
+        # Skip if far off-screen
+        if x_pos < -200 or x_pos > width + 200:
+            continue
+            
         car_px_len = 56
         car_px_h = 24
         

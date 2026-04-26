@@ -183,8 +183,9 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
                 {"agent_1": out1.action_text, "agent_2": out2.action_text}
             )
             RUNTIME.done_trained = dones["agent_1"]
-            RUNTIME.history.append({"step": RUNTIME.env_trained.timestep, "r1": rewards["agent_1"], "r2": rewards["agent_2"]})
+            status = "❌ CRASHED" if dones.get("agent_1") and RUNTIME.env_trained.state().get("collision") else ("✅ PASSED" if dones.get("agent_1") else "RUNNING")
             summary = (
+                f"Status: {status}\\n"
                 f"Total logged steps: {len(RUNTIME.history)}\\n"
                 f"Last reward A1={rewards['agent_1']:.3f}, A2={rewards['agent_2']:.3f}\\n"
                 f"Final gap errors A1={infos['agent_1']['gap_error']:.2f}, A2={infos['agent_2']['gap_error']:.2f}"
@@ -193,6 +194,7 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
             summary = "Episode finished. Click Reset."
 
         state = RUNTIME.env_trained.state()
+        RUNTIME.history.append(state)
         if delay > 0.0:
             time.sleep(delay)
         return (
@@ -213,7 +215,10 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
                 {"agent_1": out1.action_text, "agent_2": out2.action_text}
             )
             RUNTIME.done_untrained = dones["agent_1"]
+            status = "❌ CRASHED" if dones.get("agent_1") and RUNTIME.env_untrained.state().get("collision") else ("✅ PASSED" if dones.get("agent_1") else "RUNNING")
             summary = (
+                f"Status: {status}\\n"
+                f"Total logged steps: {len(RUNTIME.history)}\\n"
                 f"Last reward A1={rewards['agent_1']:.3f}, A2={rewards['agent_2']:.3f}\\n"
                 f"Gap errors A1={infos['agent_1']['gap_error']:.2f}, A2={infos['agent_2']['gap_error']:.2f}"
             )
@@ -221,6 +226,7 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
             summary = "Episode finished. Click Reset."
 
         state = RUNTIME.env_untrained.state()
+        RUNTIME.history.append(state)
         if delay > 0.0:
             time.sleep(delay)
         return (
@@ -287,34 +293,50 @@ def _play_loop(
     max_steps: int = 400,
 ) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
     RUNTIME.is_playing = True
-    for _ in range(max_steps):
+    
+    # Pre-compute episode if history is empty
+    if not RUNTIME.history:
+        yield _reset(123) # Use a default seed or current seed
+        
+        # Run full simulation first
+        while not (RUNTIME.done_trained if mode == "Trained (RL)" else RUNTIME.done_untrained):
+            if not RUNTIME.is_playing: break
+            
+            # Step the environment
+            _step_once(mode, 0.0)
+            # Yield progress update
+            state_t = RUNTIME.env_trained.state()
+            yield (
+                build_road_svg(state_t, title=f"Generating Episode... ({state_t['timestep']})"),
+                "",
+                _broadcast_table(state_t),
+                _state_json(state_t, 1),
+                _state_json(state_t, 2),
+                state_t["phase"],
+                f"Simulating step {state_t['timestep']}... Please wait.",
+            )
+        
+        # Mark as done so we can play back
+        RUNTIME.is_playing = True 
+
+    # Playback from history
+    for i, frame_state in enumerate(RUNTIME.history):
         if not RUNTIME.is_playing:
             break
-
-        frame = None
-        for _ in range(max(1, int(steps_per_frame))):
-            frame = _step_once(mode, 0.0)
-            if mode == "Trained (RL)" and RUNTIME.done_trained:
-                break
-            if mode == "Untrained (base)" and RUNTIME.done_untrained:
-                break
-            if mode == "Side-by-Side" and RUNTIME.done_trained and RUNTIME.done_untrained:
-                break
-
-        if frame is None:
-            break
-
+        
+        title = "Trained Agent (Playback)" if mode == "Trained (RL)" else "Untrained Agent (Playback)"
+        yield (
+            build_road_svg(frame_state, title=title),
+            "",
+            _broadcast_table(frame_state),
+            _state_json(frame_state, 1),
+            _state_json(frame_state, 2),
+            frame_state["phase"],
+            f"Playback: Step {frame_state['timestep']} / {len(RUNTIME.history)}",
+        )
+        
         if delay > 0.0:
             time.sleep(delay)
-
-        yield frame
-
-        if mode == "Trained (RL)" and RUNTIME.done_trained:
-            break
-        if mode == "Untrained (base)" and RUNTIME.done_untrained:
-            break
-        if mode == "Side-by-Side" and RUNTIME.done_trained and RUNTIME.done_untrained:
-            break
 
     RUNTIME.is_playing = False
 
