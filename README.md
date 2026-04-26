@@ -18,6 +18,20 @@
 
 ---
 
+## 🚀 Live Links
+
+<div align="center">
+
+[🌐 Live Demo](https://huggingface.co/spaces/tarunaadhithya/platoon-rl-env)) •
+[📓 Google Colab](https://colab.research.google.com/github/taruncodes07/SwarmDrive/blob/main/training/platoon_colab.ipynb) •
+[🎥 Demo Video](YOUR_VIDEO_LINK) •
+[💻 GitHub Repo](https://github.com/taruncodes07/SwarmDrive) •
+
+
+</div>
+
+---
+
 ## 📌 Overview
 
 **SwarmDrive** is a multi-agent reinforcement learning research platform that teaches a fleet of LLM-powered vehicles to cooperate safely in challenging highway scenarios — braking events, high-speed merges, and emergency yielding.
