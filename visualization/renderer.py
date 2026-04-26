@@ -13,100 +13,77 @@ def _mph(mps: float) -> float:
     return mps * 2.2369362921
 
 
-def _draw_tesla_style_car(
+def _draw_topdown_car(
     chunks: list[str],
     cx: float,
     cy: float,
     car_id: int,
     velocity: float,
-    net_accel: float,
     path_type: str,
     uid: int,
     is_lead: bool,
+    vehicle_role: str = "passenger",
 ) -> None:
-    """Pseudo–3/4 rear-top sedan: dark body, glass roof sheen, tail lamps, headlight wash."""
-    # Facing "up" (negative Y): wider at bottom = closer to camera
-    bw = 52.0
-    bh = 38.0
-    x0 = cx - bw / 2
-    y_base = cy
+    """Plan view: length along road (+x → right), width lateral. Matches a bird's-eye reading of the lane."""
+    car_len = 52.0
+    car_wid = 22.0
+    x0 = cx - car_len / 2
+    y0 = cy - car_wid / 2
+    rx = 6.0
 
-    body_grad = f"carBody_{uid}_{car_id}"
-    roof_grad = f"carRoof_{uid}_{car_id}"
-    glass_grad = f"carGlass_{uid}_{car_id}"
-
-    if is_lead:
-        base_fill = "#5c6169"
-        accent = "#94a3b8"
+    if vehicle_role == "ambulance":
+        fill = "#7f1d1d"
+        stroke = "#fb923c"
+        accent = "#fed7aa"
+    elif is_lead:
+        fill = "#4b5563"
+        stroke = "#9ca3af"
+        accent = "#d1d5db"
     elif car_id == 1:
-        base_fill = "#1e293b"
-        accent = "#38bdf8"
+        fill = "#1e3a5f"
+        stroke = "#38bdf8"
+        accent = "#7dd3fc"
     else:
-        base_fill = "#1a2332"
-        accent = "#22d3ee"
+        fill = "#164e63"
+        stroke = "#22d3ee"
+        accent = "#67e8f9"
 
+    body_grad = f"tdBody_{uid}_{car_id}"
     chunks.append(
-        f"<linearGradient id='{body_grad}' x1='0%' y1='100%' x2='0%' y2='0%'>"
-        f"<stop offset='0%' stop-color='#0a0c10'/><stop offset='45%' stop-color='{base_fill}'/>"
-        f"<stop offset='100%' stop-color='#334155'/></linearGradient>"
-    )
-    chunks.append(
-        f"<linearGradient id='{roof_grad}' x1='0%' y1='0%' x2='100%' y2='0%'>"
-        f"<stop offset='0%' stop-color='#1e293b'/><stop offset='50%' stop-color='#475569'/>"
+        f"<linearGradient id='{body_grad}' x1='0%' y1='0%' x2='100%' y2='0%'>"
+        f"<stop offset='0%' stop-color='#0f172a'/><stop offset='50%' stop-color='{fill}'/>"
         f"<stop offset='100%' stop-color='#1e293b'/></linearGradient>"
     )
+
     chunks.append(
-        f"<linearGradient id='{glass_grad}' x1='0%' y1='0%' x2='0%' y2='100%'>"
-        f"<stop offset='0%' stop-color='#0f172a' stop-opacity='0.9'/>"
-        f"<stop offset='100%' stop-color='#1e3a5f' stop-opacity='0.55'/></linearGradient>"
+        f"<rect x='{x0}' y='{y0}' width='{car_len}' height='{car_wid}' rx='{rx}' "
+        f"fill='url(#{body_grad})' stroke='{stroke}' stroke-width='1.5'/>"
+    )
+    # Rear (left, −x): subtle brake lamps
+    chunks.append(
+        f"<line x1='{x0 + 3}' y1='{y0 + 4}' x2='{x0 + 3}' y2='{y0 + car_wid - 4}' "
+        f"stroke='#b91c1c' stroke-width='3' stroke-linecap='round' opacity='0.85'/>"
+    )
+    # Front (+x): heading mark (no headlight cone — avoids stray “X” with lane glow)
+    chunks.append(
+        f"<polygon points='{x0 + car_len - 2},{cy} {x0 + car_len - 11},{cy - 5} {x0 + car_len - 11},{cy + 5}' "
+        f"fill='{accent}' opacity='0.9'/>"
+    )
+    chunks.append(
+        f"<line x1='{x0 + car_len * 0.62}' y1='{y0 + 2}' x2='{x0 + car_len * 0.62}' y2='{y0 + car_wid - 2}' "
+        f"stroke='#334155' stroke-width='1' opacity='0.7'/>"
     )
 
-    # Body trapezoid (rear toward viewer)
-    chunks.append(
-        f"<path d='M {x0 + 6} {y_base - bh * 0.15} L {x0 + bw - 6} {y_base - bh * 0.15} "
-        f"L {x0 + bw * 0.88} {y_base - bh} L {x0 + bw * 0.12} {y_base - bh} Z' "
-        f"fill='url(#{body_grad})' stroke='#020617' stroke-width='1.2' stroke-opacity='0.85'/>"
-    )
-    # Roof / glass
-    chunks.append(
-        f"<path d='M {x0 + bw * 0.22} {y_base - bh * 0.92} L {x0 + bw * 0.78} {y_base - bh * 0.92} "
-        f"L {x0 + bw * 0.72} {y_base - bh * 1.05} L {x0 + bw * 0.28} {y_base - bh * 1.05} Z' "
-        f"fill='url(#{glass_grad})' opacity='0.95'/>"
-    )
-    chunks.append(
-        f"<path d='M {x0 + bw * 0.28} {y_base - bh * 1.02} L {x0 + bw * 0.72} {y_base - bh * 1.02} "
-        f"L {x0 + bw * 0.65} {y_base - bh * 1.12} L {x0 + bw * 0.35} {y_base - bh * 1.12} Z' "
-        f"fill='url(#{roof_grad})' opacity='0.55'/>"
-    )
-
-    # Tail lights
-    chunks.append(
-        f"<rect x='{x0 + bw * 0.12}' y='{y_base - bh * 0.38}' width='{bw * 0.16}' height='5' rx='2' "
-        f"fill='#ef4444' filter='url(#tailGlow_{uid})'/>"
-    )
-    chunks.append(
-        f"<rect x='{x0 + bw * 0.72}' y='{y_base - bh * 0.38}' width='{bw * 0.16}' height='5' rx='2' "
-        f"fill='#ef4444' filter='url(#tailGlow_{uid})'/>"
-    )
-
-    # Headlight wash on road (forward = up in screen)
-    head_y = y_base - bh * 1.15
-    chunks.append(
-        f"<path d='M {cx - 14} {head_y} L {cx - 42} {head_y - 55} L {cx + 42} {head_y - 55} L {cx + 14} {head_y} Z' "
-        f"fill='url(#headWash_{uid})' opacity='0.35'/>"
-    )
-
-    # Accent underline (lane / agent color)
-    chunks.append(
-        f"<line x1='{x0 + 4}' y1='{y_base + 4}' x2='{x0 + bw - 4}' y2='{y_base + 4}' "
-        f"stroke='{accent}' stroke-width='2' stroke-opacity='0.9'/>"
-    )
-
-    label = "LEAD" if is_lead else f"A{car_id}"
+    if vehicle_role == "ambulance":
+        label = "AMB"
+    elif is_lead:
+        label = "LEAD"
+    else:
+        label = f"A{car_id}"
     if path_type == "merge":
         label += " · MERGE"
     chunks.append(
-        f"<text x='{cx}' y='{y_base + 18}' text-anchor='middle' font-size='11' "
+        f"<text x='{cx}' y='{y0 + car_wid + 14}' text-anchor='middle' font-size='11' "
         f"font-family='Segoe UI, system-ui, sans-serif' fill='#94a3b8'>{label} · {_mph(velocity):.0f} mph</text>"
     )
 
@@ -144,6 +121,9 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
         "downhill_gain": "#fb7185",
         "recover": "#22d3ee",
         "rebound": "#4ade80",
+        "ambulance_approach": "#f472b6",
+        "ambulance_pass": "#fb7185",
+        "post_pass": "#34d399",
     }
     phase_color = phase_colors.get(phase, "#64748b")
 
@@ -160,18 +140,8 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
     )
     chunks.append("<defs>")
     chunks.append(
-        f"<filter id='tailGlow_{uid}' x='-50%' y='-50%' width='200%' height='200%'>"
-        f"<feGaussianBlur stdDeviation='2.2' result='b'/><feMerge><feMergeNode in='b'/>"
-        f"<feMergeNode in='SourceGraphic'/></feMerge></filter>"
-    )
-    chunks.append(
         f"<filter id='laneGlow_{uid}' x='-20%' y='-20%' width='140%' height='140%'>"
         f"<feGaussianBlur stdDeviation='2.8' result='blur'/></filter>"
-    )
-    chunks.append(
-        f"<linearGradient id='headWash_{uid}' x1='0.5' y1='1' x2='0.5' y2='0'>"
-        f"<stop offset='0%' stop-color='#ffffff' stop-opacity='0'/><stop offset='100%' stop-color='#e0f2fe' stop-opacity='0.7'/>"
-        f"</linearGradient>"
     )
     chunks.append(
         "<linearGradient id='bgVignette' x1='0' x2='0' y1='0' y2='1'>"
@@ -272,6 +242,26 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
             f"<path d='M {jx + 72} {y_lo + 6} Q {jx + 22} {(y_lo + y_hi) / 2 - 5}, {merge_start_px + 18} {y_hi + 38}' "
             f"fill='none' stroke='#38bdf8' stroke-width='2' stroke-linecap='round' opacity='0.55'/>"
         )
+    elif scenario == "scenario_03_ambulance" and (state.get("road_layout") or {}).get("kind") == "three_lane":
+        lx0, lx1 = road_x_left(0.02), road_x_left(0.98)
+        rx0, rx1 = road_x_right(0.02), road_x_right(0.98)
+        y_lo = road_top + road_h - 8
+        y_hi = road_top + 28
+        chunks.append(
+            f"<path d='M {lx0} {y_lo} L {lx1} {y_hi} M {rx0} {y_lo} L {rx1} {y_hi}' "
+            f"stroke='#0ea5e9' stroke-width='5' stroke-linecap='round' opacity='0.95' filter='url(#laneGlow_{uid})'/>"
+        )
+        for u in (1.0 / 3.0, 2.0 / 3.0):
+            xb = lx0 + u * (rx0 - lx0)
+            xt = lx1 + u * (rx1 - lx1)
+            chunks.append(
+                f"<path d='M {xb} {y_lo} L {xt} {y_hi}' stroke='#38bdf8' stroke-width='3' stroke-linecap='round' "
+                f"opacity='0.85' filter='url(#laneGlow_{uid})'/>"
+            )
+        chunks.append(
+            f"<text x='{margin + 6}' y='{y_hi + 14}' font-size='10' fill='#64748b' font-family='Segoe UI, system-ui, sans-serif'>"
+            f"3-lane · yield lane for AMB</text>"
+        )
     else:
         lx0, lx1 = road_x_left(0.02), road_x_left(0.98)
         rx0, rx1 = road_x_right(0.02), road_x_right(0.98)
@@ -318,18 +308,17 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
         if x_pos < -120 or x_pos > width + 120:
             continue
         vel = float(v.get("velocity", 0.0))
-        na = float(v.get("net_acceleration", 0.0))
         ptype = str(v.get("path_type", "straight"))
-        _draw_tesla_style_car(
+        _draw_topdown_car(
             chunks,
             x_pos,
             cy,
             car_id,
             vel,
-            na,
             ptype,
             uid * 17 + car_id,
             is_lead=(car_id == 0),
+            vehicle_role=str(v.get("vehicle_role", "passenger")),
         )
 
     # Footer gaps / progress

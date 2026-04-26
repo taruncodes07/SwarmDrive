@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -28,6 +28,10 @@ class RewardTerms:
     merge_rush_penalty: float
     merge_post_spacing_bonus: float
     merge_approach_patience_bonus: float
+    ambulance_clear_lane_bonus: float
+    ambulance_blocking_penalty: float
+    ambulance_yield_bonus: float
+    ambulance_pass_clear_bonus: float
 
     @property
     def total(self) -> float:
@@ -49,6 +53,10 @@ class RewardTerms:
             + self.merge_rush_penalty
             + self.merge_post_spacing_bonus
             + self.merge_approach_patience_bonus
+            + self.ambulance_clear_lane_bonus
+            + self.ambulance_blocking_penalty
+            + self.ambulance_yield_bonus
+            + self.ambulance_pass_clear_bonus
         )
 
 
@@ -68,9 +76,13 @@ class RewardModel:
         scenario_name: str = "scenario_01_brake",
         lateral_separation: float = 0.0,
         dist_to_merge: float | None = None,
+        global_collision: bool = False,
+        ambulance_ctx: dict[str, Any] | None = None,
     ) -> RewardTerms:
         gap_error = gap - desired_gap
-        collision_penalty = self.reward_cfg["collision_penalty"] if gap <= 0.0 else 0.0
+        collision_penalty = (
+            self.reward_cfg["collision_penalty"] if (gap <= 0.0 or global_collision) else 0.0
+        )
 
         gap_deadband = float(self.reward_cfg.get("gap_deadband_m", 0.5))
         speed_deadband = float(self.reward_cfg.get("speed_deadband_mps", 0.2))
@@ -120,7 +132,15 @@ class RewardModel:
             ttc_threshold = float(self.reward_cfg.get("ttc_threshold_s", 1.8))
             shortfall = max(0.0, ttc_threshold - ttc)
             hazard_multiplier = 1.0
-            if phase in {"pulse_brake", "traffic_wave", "low_friction", "cutin_emergency", "merge_zone"}:
+            if phase in {
+                "pulse_brake",
+                "traffic_wave",
+                "low_friction",
+                "cutin_emergency",
+                "merge_zone",
+                "ambulance_approach",
+                "ambulance_pass",
+            }:
                 hazard_multiplier = float(self.reward_cfg.get("hazard_ttc_multiplier", 1.5))
             ttc_penalty = -shortfall * float(self.reward_cfg.get("ttc_weight", 0.5)) * hazard_multiplier
 
@@ -165,6 +185,32 @@ class RewardModel:
                 if gap >= post_min:
                     merge_post_spacing_bonus = float(self.reward_cfg.get("merge_post_spacing_bonus", 0.45))
 
+        ambulance_clear_lane_bonus = 0.0
+        ambulance_blocking_penalty = 0.0
+        ambulance_yield_bonus = 0.0
+        ambulance_pass_clear_bonus = 0.0
+
+        if scenario_name == "scenario_03_ambulance" and ambulance_ctx:
+            heard = bool(ambulance_ctx.get("heard_siren"))
+            amb_lane = int(ambulance_ctx.get("ambulance_lane", 1))
+            ego_lane = int(ambulance_ctx.get("ego_lane", 1))
+            blocking = bool(ambulance_ctx.get("blocking_ambulance_lane"))
+            closing = bool(ambulance_ctx.get("ambulance_closing_fast"))
+            passed = bool(ambulance_ctx.get("ambulance_passed"))
+            changed_lane = bool(ambulance_ctx.get("changed_lane_this_step"))
+
+            if heard and ego_lane != amb_lane and phase in {"ambulance_approach", "ambulance_pass"}:
+                ambulance_clear_lane_bonus = float(self.reward_cfg.get("ambulance_clear_lane_bonus", 0.55))
+
+            if heard and blocking and closing:
+                ambulance_blocking_penalty = float(self.reward_cfg.get("ambulance_blocking_penalty", -1.2))
+
+            if heard and changed_lane and ego_lane != amb_lane:
+                ambulance_yield_bonus = float(self.reward_cfg.get("ambulance_yield_lane_bonus", 0.45))
+
+            if passed and ego_lane != amb_lane:
+                ambulance_pass_clear_bonus = float(self.reward_cfg.get("ambulance_pass_clear_bonus", 0.35))
+
         return RewardTerms(
             collision_penalty=collision_penalty,
             gap_error_penalty=gap_error_penalty,
@@ -183,6 +229,10 @@ class RewardModel:
             merge_rush_penalty=merge_rush_penalty,
             merge_post_spacing_bonus=merge_post_spacing_bonus,
             merge_approach_patience_bonus=merge_approach_patience_bonus,
+            ambulance_clear_lane_bonus=ambulance_clear_lane_bonus,
+            ambulance_blocking_penalty=ambulance_blocking_penalty,
+            ambulance_yield_bonus=ambulance_yield_bonus,
+            ambulance_pass_clear_bonus=ambulance_pass_clear_bonus,
         )
 
     @staticmethod

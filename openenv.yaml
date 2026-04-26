@@ -21,11 +21,11 @@ scenarios:
     max_steps: 120
     num_llm_agents: 2
     phases: [steady, merge_zone, post_merge]
-  - name: scenario_03_low_friction
-    description: "Complex downhill + low-friction emergency with delayed braking effectiveness"
+  - name: scenario_03_ambulance
+    description: "Three-lane road; agents hear ambulance via proximity V2V and must change lanes to yield"
     max_steps: 80
     num_llm_agents: 2
-    phases: [steady, downhill_gain, low_friction, cutin_emergency, recover]
+    phases: [steady, ambulance_approach, ambulance_pass, post_pass]
 model:
   base: Qwen/Qwen2.5-1.5B-Instruct
   sft_checkpoint: "${HF_USERNAME}/platoon-qwen-sft"

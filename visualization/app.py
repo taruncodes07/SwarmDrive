@@ -27,7 +27,7 @@ from config.settings import ROOT_DIR
 from environment.platoon_env import PlatoonEnv
 from visualization.renderer import build_road_svg
 
-AVAILABLE_SCENARIOS = ["scenario_01_brake", "scenario_02_merge", "scenario_03_low_friction"]
+AVAILABLE_SCENARIOS = ["scenario_01_brake", "scenario_02_merge", "scenario_03_ambulance"]
 
 
 @dataclass
@@ -43,9 +43,15 @@ class AppRuntime:
     done_trained: bool = False
     done_untrained: bool = False
     is_playing: bool = False
-    history_trained: list[dict[str, Any]] | None = None
-    history_untrained: list[dict[str, Any]] | None = None
-    history_side: list[tuple[dict[str, Any], dict[str, Any]]] | None = None
+    history_trained: list[Any] | None = None
+    history_untrained: list[Any] | None = None
+    history_side: list[Any] | None = None
+    collision_ever_trained: bool = False
+    collision_ever_untrained: bool = False
+    last_rewards_trained: dict[str, float] | None = None
+    last_infos_trained: dict[str, Any] | None = None
+    last_rewards_untrained: dict[str, float] | None = None
+    last_infos_untrained: dict[str, Any] | None = None
 
 
 def _gpu_info() -> str:
@@ -159,6 +165,131 @@ def _state_json(state: dict[str, Any], agent_id: int) -> dict[str, Any]:
     }
 
 
+def _history_frame_state(entry: Any) -> dict[str, Any]:
+    if isinstance(entry, dict) and "state" in entry:
+        return entry["state"]
+    return entry  # raw state dict (legacy)
+
+
+def _history_frame_rewards_infos(entry: Any) -> tuple[dict[str, float] | None, dict[str, Any] | None]:
+    if isinstance(entry, dict) and "rewards" in entry:
+        r = entry.get("rewards")
+        i = entry.get("infos")
+        return (
+            r if isinstance(r, dict) else None,
+            i if isinstance(i, dict) else None,
+        )
+    return None, None
+
+
+def _reward_terms_lines(infos: dict[str, Any] | None, prefix: str) -> list[str]:
+    if not infos:
+        return []
+    lines: list[str] = []
+    for aid in ("agent_1", "agent_2"):
+        block = infos.get(aid)
+        if not isinstance(block, dict):
+            continue
+        terms = block.get("reward_terms")
+        if not isinstance(terms, dict):
+            continue
+        nonzero = {k: float(v) for k, v in terms.items() if abs(float(v)) > 1e-8}
+        if not nonzero:
+            continue
+        ordered = sorted(nonzero.items(), key=lambda kv: (-abs(kv[1]), kv[0]))
+        parts = ", ".join(f"`{k}` {v:+.4f}" for k, v in ordered[:14])
+        more = f" (+{len(ordered) - 14} more)" if len(ordered) > 14 else ""
+        lines.append(f"- **{prefix}{aid}** reward terms: {parts}{more}")
+    return lines
+
+
+def _format_step_stats(
+    state: dict[str, Any],
+    rewards: dict[str, float] | None,
+    infos: dict[str, Any] | None,
+    *,
+    collision_ever: bool,
+    episode_done: bool,
+    subtitle: str = "",
+) -> str:
+    t = int(state.get("timestep", 0))
+    phase = state.get("phase", "")
+    coll_now = bool(state.get("collision"))
+    lines: list[str] = [
+        f"### Step {t} · phase `{phase}`" + (f" · {subtitle}" if subtitle else ""),
+        "",
+    ]
+    if rewards:
+        r1 = float(rewards.get("agent_1", 0.0))
+        r2 = float(rewards.get("agent_2", 0.0))
+        lines.append(f"**This step — total reward** · Agent 1: `{r1:+.4f}` · Agent 2: `{r2:+.4f}`")
+        lines.append("")
+        lines.extend(_reward_terms_lines(infos, ""))
+        if lines[-1] != "":
+            lines.append("")
+    else:
+        lines.append("*No environment step recorded yet for this episode (after reset, click Play or step once).*")
+        lines.append("")
+
+    if coll_now:
+        lines.append("- **Collision in current state:** yes")
+    elif collision_ever:
+        lines.append("- **Collision this episode:** recorded earlier")
+    else:
+        lines.append("- **Collision this episode:** none so far")
+    lines.append("")
+
+    if episode_done:
+        if collision_ever or coll_now:
+            lines.append("### ⚠️ Episode ended — **collision occurred**")
+        else:
+            lines.append("### ✅ Episode complete — **no collision** (success)")
+    return "\n".join(lines)
+
+
+def _format_side_step_stats(
+    state_t: dict[str, Any],
+    rewards_t: dict[str, float] | None,
+    infos_t: dict[str, Any] | None,
+    state_u: dict[str, Any],
+    rewards_u: dict[str, float] | None,
+    infos_u: dict[str, Any] | None,
+    *,
+    collision_ever_t: bool,
+    collision_ever_u: bool,
+    episode_done_t: bool,
+    episode_done_u: bool,
+) -> str:
+    st = _format_step_stats(
+        state_t,
+        rewards_t,
+        infos_t,
+        collision_ever=collision_ever_t,
+        episode_done=False,
+        subtitle="trained (left)",
+    )
+    su = _format_step_stats(
+        state_u,
+        rewards_u,
+        infos_u,
+        collision_ever=collision_ever_u,
+        episode_done=False,
+        subtitle="untrained (right)",
+    )
+    parts = ["## Side-by-side", "", st, "", "---", "", su, ""]
+    if episode_done_t and episode_done_u:
+        ok = not collision_ever_t and not collision_ever_u
+        if ok:
+            parts.append("### ✅ Both episodes finished — **no collisions** (success)")
+        else:
+            parts.append("### ⚠️ One or both episodes had a **collision**")
+    elif episode_done_t and not collision_ever_t:
+        parts.append("### ✅ Trained episode — **no collision** (success)")
+    elif episode_done_u and not collision_ever_u:
+        parts.append("### ✅ Untrained episode — **no collision** (success)")
+    return "\n".join(parts)
+
+
 def _broadcast_table(state: dict[str, Any]) -> list[list[Any]]:
     rows: list[list[Any]] = []
     for packet in state.get("broadcast_buffer", [])[-5:]:
@@ -181,6 +312,8 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
 
     if mode == "Trained (RL)":
         stepped = False
+        rewards: dict[str, float] | None = None
+        infos: dict[str, Any] | None = None
         if not RUNTIME.done_trained:
             out1 = RUNTIME.trained_agent.act(RUNTIME.obs_trained["agent_1"], temperature=0.0)
             out2 = RUNTIME.trained_agent.act(RUNTIME.obs_trained["agent_2"], temperature=0.0)
@@ -189,17 +322,23 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
             )
             RUNTIME.done_trained = dones["agent_1"]
             stepped = True
-            summary = (
-                f"Total logged steps: {len(RUNTIME.history_trained) + 1}\n"
-                f"Last reward A1={rewards['agent_1']:.3f}, A2={rewards['agent_2']:.3f}\n"
-                f"Final gap errors A1={infos['agent_1']['gap_error']:.2f}, A2={infos['agent_2']['gap_error']:.2f}"
-            )
-        else:
-            summary = "Episode finished. Click Reset."
+            RUNTIME.last_rewards_trained = rewards
+            RUNTIME.last_infos_trained = infos
 
         state = RUNTIME.env_trained.state()
         if stepped:
-            RUNTIME.history_trained.append(state)
+            if state.get("collision"):
+                RUNTIME.collision_ever_trained = True
+            RUNTIME.history_trained.append({"state": state, "rewards": rewards, "infos": infos})
+        rw = rewards if stepped else RUNTIME.last_rewards_trained
+        inf = infos if stepped else RUNTIME.last_infos_trained
+        summary = _format_step_stats(
+            state,
+            rw,
+            inf,
+            collision_ever=RUNTIME.collision_ever_trained,
+            episode_done=RUNTIME.done_trained,
+        )
         if delay > 0.0:
             time.sleep(delay)
         return (
@@ -214,6 +353,8 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
 
     if mode == "Untrained (base)":
         stepped = False
+        rewards: dict[str, float] | None = None
+        infos: dict[str, Any] | None = None
         if not RUNTIME.done_untrained:
             out1 = RUNTIME.untrained_agent.act(RUNTIME.obs_untrained["agent_1"], temperature=0.0)
             out2 = RUNTIME.untrained_agent.act(RUNTIME.obs_untrained["agent_2"], temperature=0.0)
@@ -222,17 +363,23 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
             )
             RUNTIME.done_untrained = dones["agent_1"]
             stepped = True
-            summary = (
-                f"Total logged steps: {len(RUNTIME.history_untrained) + 1}\n"
-                f"Last reward A1={rewards['agent_1']:.3f}, A2={rewards['agent_2']:.3f}\n"
-                f"Gap errors A1={infos['agent_1']['gap_error']:.2f}, A2={infos['agent_2']['gap_error']:.2f}"
-            )
-        else:
-            summary = "Episode finished. Click Reset."
+            RUNTIME.last_rewards_untrained = rewards
+            RUNTIME.last_infos_untrained = infos
 
         state = RUNTIME.env_untrained.state()
         if stepped:
-            RUNTIME.history_untrained.append(state)
+            if state.get("collision"):
+                RUNTIME.collision_ever_untrained = True
+            RUNTIME.history_untrained.append({"state": state, "rewards": rewards, "infos": infos})
+        rw = rewards if stepped else RUNTIME.last_rewards_untrained
+        inf = infos if stepped else RUNTIME.last_infos_untrained
+        summary = _format_step_stats(
+            state,
+            rw,
+            inf,
+            collision_ever=RUNTIME.collision_ever_untrained,
+            episode_done=RUNTIME.done_untrained,
+        )
         if delay > 0.0:
             time.sleep(delay)
         return (
@@ -247,6 +394,10 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
 
     # Side-by-side
     stepped = False
+    rewards_t: dict[str, float] | None = None
+    infos_t: dict[str, Any] | None = None
+    rewards_u: dict[str, float] | None = None
+    infos_u: dict[str, Any] | None = None
     if not RUNTIME.done_trained:
         out1_t = RUNTIME.trained_agent.act(RUNTIME.obs_trained["agent_1"], temperature=0.0)
         out2_t = RUNTIME.trained_agent.act(RUNTIME.obs_trained["agent_2"], temperature=0.0)
@@ -255,9 +406,11 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
         )
         RUNTIME.done_trained = dones_t["agent_1"]
         stepped = True
+        RUNTIME.last_rewards_trained = rewards_t
+        RUNTIME.last_infos_trained = infos_t
     else:
-        rewards_t = {"agent_1": 0.0, "agent_2": 0.0}
-        infos_t = {"agent_1": {"gap_error": 0.0}, "agent_2": {"gap_error": 0.0}}
+        rewards_t = RUNTIME.last_rewards_trained
+        infos_t = RUNTIME.last_infos_trained
 
     if not RUNTIME.done_untrained:
         out1_u = RUNTIME.untrained_agent.act(RUNTIME.obs_untrained["agent_1"], temperature=0.0)
@@ -267,23 +420,39 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
         )
         RUNTIME.done_untrained = dones_u["agent_1"]
         stepped = True
+        RUNTIME.last_rewards_untrained = rewards_u
+        RUNTIME.last_infos_untrained = infos_u
     else:
-        rewards_u = {"agent_1": 0.0, "agent_2": 0.0}
-        infos_u = {"agent_1": {"gap_error": 0.0}, "agent_2": {"gap_error": 0.0}}
+        rewards_u = RUNTIME.last_rewards_untrained
+        infos_u = RUNTIME.last_infos_untrained
 
     state_t = RUNTIME.env_trained.state()
     state_u = RUNTIME.env_untrained.state()
     if stepped:
-        RUNTIME.history_side.append((state_t, state_u))
+        if state_t.get("collision"):
+            RUNTIME.collision_ever_trained = True
+        if state_u.get("collision"):
+            RUNTIME.collision_ever_untrained = True
+        RUNTIME.history_side.append(
+            (
+                {"state": state_t, "rewards": rewards_t, "infos": infos_t},
+                {"state": state_u, "rewards": rewards_u, "infos": infos_u},
+            )
+        )
     if delay > 0.0:
         time.sleep(delay)
 
-    summary = (
-        "Side-by-side\n"
-        f"Trained rewards: A1={rewards_t['agent_1']:.3f}, A2={rewards_t['agent_2']:.3f}\n"
-        f"Untrained rewards: A1={rewards_u['agent_1']:.3f}, A2={rewards_u['agent_2']:.3f}\n"
-        f"Trained final gap err A1={infos_t['agent_1']['gap_error']:.2f}, A2={infos_t['agent_2']['gap_error']:.2f}\n"
-        f"Untrained final gap err A1={infos_u['agent_1']['gap_error']:.2f}, A2={infos_u['agent_2']['gap_error']:.2f}"
+    summary = _format_side_step_stats(
+        state_t,
+        rewards_t,
+        infos_t,
+        state_u,
+        rewards_u,
+        infos_u,
+        collision_ever_t=RUNTIME.collision_ever_trained,
+        collision_ever_u=RUNTIME.collision_ever_untrained,
+        episode_done_t=RUNTIME.done_trained,
+        episode_done_u=RUNTIME.done_untrained,
     )
 
     return (
@@ -313,13 +482,210 @@ def _history_for_playback(mode: str) -> list[Any]:
     return RUNTIME.history_side
 
 
+def _stats_after_step(mode: str) -> str:
+    if mode == "Trained (RL)":
+        if not RUNTIME.history_trained:
+            return "### Recording…\n\n*Waiting for first step.*"
+        e = RUNTIME.history_trained[-1]
+        st = _history_frame_state(e)
+        rw, inf = _history_frame_rewards_infos(e)
+        return _format_step_stats(
+            st, rw, inf, collision_ever=RUNTIME.collision_ever_trained, episode_done=RUNTIME.done_trained
+        )
+    if mode == "Untrained (base)":
+        if not RUNTIME.history_untrained:
+            return "### Recording…\n\n*Waiting for first step.*"
+        e = RUNTIME.history_untrained[-1]
+        st = _history_frame_state(e)
+        rw, inf = _history_frame_rewards_infos(e)
+        return _format_step_stats(
+            st, rw, inf, collision_ever=RUNTIME.collision_ever_untrained, episode_done=RUNTIME.done_untrained
+        )
+    if not RUNTIME.history_side:
+        return "### Recording…\n\n*Waiting for first step.*"
+    rt, ru = RUNTIME.history_side[-1]
+    return _format_side_step_stats(
+        rt["state"],
+        rt.get("rewards"),
+        rt.get("infos"),
+        ru["state"],
+        ru.get("rewards"),
+        ru.get("infos"),
+        collision_ever_t=RUNTIME.collision_ever_trained,
+        collision_ever_u=RUNTIME.collision_ever_untrained,
+        episode_done_t=RUNTIME.done_trained,
+        episode_done_u=RUNTIME.done_untrained,
+    )
+
+
+def _playback_frame_stats(mode: str, item: Any, index: int, total: int) -> str:
+    is_last = index == total - 1 and total > 0
+    if mode == "Side-by-Side":
+        rt, ru = item
+        return _format_side_step_stats(
+            rt["state"],
+            rt.get("rewards"),
+            rt.get("infos"),
+            ru["state"],
+            ru.get("rewards"),
+            ru.get("infos"),
+            collision_ever_t=RUNTIME.collision_ever_trained,
+            collision_ever_u=RUNTIME.collision_ever_untrained,
+            episode_done_t=is_last and RUNTIME.done_trained,
+            episode_done_u=is_last and RUNTIME.done_untrained,
+        )
+    fr = _history_frame_state(item)
+    rw, inf = _history_frame_rewards_infos(item)
+    if mode == "Trained (RL)":
+        return _format_step_stats(
+            fr,
+            rw,
+            inf,
+            collision_ever=RUNTIME.collision_ever_trained,
+            episode_done=is_last and RUNTIME.done_trained,
+        )
+    return _format_step_stats(
+        fr,
+        rw,
+        inf,
+        collision_ever=RUNTIME.collision_ever_untrained,
+        episode_done=is_last and RUNTIME.done_untrained,
+    )
+
+
+def _scrub_slider_update(
+    mode: str,
+    *,
+    index: int | None = None,
+    interactive: bool,
+) -> dict:
+    hist = _history_for_playback(mode)
+    n = len(hist)
+    mx = max(0, n - 1)
+    if n == 0:
+        return gr.update(minimum=0, maximum=0, value=0, interactive=interactive)
+    v = int(index) if index is not None else mx
+    v = max(0, min(v, mx))
+    return gr.update(minimum=0, maximum=mx, value=v, interactive=interactive)
+
+
+def _live_env_outputs(mode: str) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+    if mode == "Side-by-Side":
+        st = RUNTIME.env_trained.state()
+        su = RUNTIME.env_untrained.state()
+        summary = _format_side_step_stats(
+            st,
+            RUNTIME.last_rewards_trained,
+            RUNTIME.last_infos_trained,
+            su,
+            RUNTIME.last_rewards_untrained,
+            RUNTIME.last_infos_untrained,
+            collision_ever_t=RUNTIME.collision_ever_trained,
+            collision_ever_u=RUNTIME.collision_ever_untrained,
+            episode_done_t=RUNTIME.done_trained,
+            episode_done_u=RUNTIME.done_untrained,
+        )
+        return (
+            build_road_svg(st, title="Trained"),
+            build_road_svg(su, title="Untrained"),
+            _broadcast_table(st),
+            _state_json(st, 1),
+            _state_json(st, 2),
+            st["phase"],
+            summary,
+        )
+    if mode == "Untrained (base)":
+        su = RUNTIME.env_untrained.state()
+        summary = _format_step_stats(
+            su,
+            RUNTIME.last_rewards_untrained,
+            RUNTIME.last_infos_untrained,
+            collision_ever=RUNTIME.collision_ever_untrained,
+            episode_done=RUNTIME.done_untrained,
+        )
+        return (
+            build_road_svg(su, title="Untrained Agent"),
+            "",
+            _broadcast_table(su),
+            _state_json(su, 1),
+            _state_json(su, 2),
+            su["phase"],
+            summary,
+        )
+    st = RUNTIME.env_trained.state()
+    summary = _format_step_stats(
+        st,
+        RUNTIME.last_rewards_trained,
+        RUNTIME.last_infos_trained,
+        collision_ever=RUNTIME.collision_ever_trained,
+        episode_done=RUNTIME.done_trained,
+    )
+    return (
+        build_road_svg(st, title="Trained Agent"),
+        "",
+        _broadcast_table(st),
+        _state_json(st, 1),
+        _state_json(st, 2),
+        st["phase"],
+        summary,
+    )
+
+
+def _render_history_frame(mode: str, frame_index: float | int) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+    hist = _history_for_playback(mode)
+    if not hist:
+        return _live_env_outputs(mode)
+    idx = max(0, min(int(frame_index), len(hist) - 1))
+    item = hist[idx]
+    if mode == "Side-by-Side":
+        rt, ru = item
+        st = rt["state"]
+        su = ru["state"]
+        stats_pb = _playback_frame_stats(mode, item, idx, len(hist))
+        return (
+            build_road_svg(st, title="Trained (scrub)"),
+            build_road_svg(su, title="Untrained (scrub)"),
+            _broadcast_table(st),
+            _state_json(st, 1),
+            _state_json(st, 2),
+            st["phase"],
+            stats_pb,
+        )
+    frame_state = _history_frame_state(item)
+    title = "Trained Agent (scrub)" if mode == "Trained (RL)" else "Untrained Agent (scrub)"
+    stats_pb = _playback_frame_stats(mode, item, idx, len(hist))
+    return (
+        build_road_svg(frame_state, title=title),
+        "",
+        _broadcast_table(frame_state),
+        _state_json(frame_state, 1),
+        _state_json(frame_state, 2),
+        frame_state["phase"],
+        stats_pb,
+    )
+
+
+def _on_playback_scrub(mode: str, frame_index: float) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+    return _render_history_frame(mode, frame_index)
+
+
+def _on_mode_change(mode: str) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str, dict]:
+    RUNTIME.mode = mode
+    hist = _history_for_playback(mode)
+    idx = max(0, len(hist) - 1) if hist else 0
+    vis = _render_history_frame(mode, idx)
+    return (*vis, _scrub_slider_update(mode, index=idx, interactive=True))
+
+
 def _play_loop(
     mode: str,
     delay: float,
     steps_per_frame: int,
     seed: float,
+    repeat_playback: bool,
     max_steps: int = 2000,
 ):
+    RUNTIME.mode = mode
     RUNTIME.is_playing = True
     hist: list[Any] = _history_for_playback(mode)
     sim_seed = int(seed) if seed is not None else 123
@@ -337,6 +703,8 @@ def _play_loop(
                 sim_guard += 1
             st = RUNTIME.env_trained.state()
             su = RUNTIME.env_untrained.state()
+            rec_stats = _stats_after_step(mode)
+            scrub_u = _scrub_slider_update(mode, interactive=False)
             if mode == "Side-by-Side":
                 yield (
                     build_road_svg(st, title=f"Recording… (t={st['timestep']})"),
@@ -345,7 +713,8 @@ def _play_loop(
                     _state_json(st, 1),
                     _state_json(st, 2),
                     st["phase"],
-                    f"Recording episode… step {st['timestep']}. Please wait.",
+                    rec_stats,
+                    scrub_u,
                 )
             elif mode == "Untrained (base)":
                 yield (
@@ -355,7 +724,8 @@ def _play_loop(
                     _state_json(su, 1),
                     _state_json(su, 2),
                     su["phase"],
-                    f"Recording episode… step {su['timestep']}. Please wait.",
+                    rec_stats,
+                    scrub_u,
                 )
             else:
                 yield (
@@ -365,41 +735,89 @@ def _play_loop(
                     _state_json(st, 1),
                     _state_json(st, 2),
                     st["phase"],
-                    f"Recording episode… step {st['timestep']}. Please wait.",
+                    rec_stats,
+                    scrub_u,
                 )
         hist = _history_for_playback(mode)
 
-    if mode == "Side-by-Side":
-        for st, su in hist:
-            if not RUNTIME.is_playing:
-                break
+    if not hist:
+        RUNTIME.is_playing = False
+        live = _live_env_outputs(mode)
+        yield (
+            *live,
+            gr.update(minimum=0, maximum=0, value=0, interactive=True),
+        )
+        return
+
+    while True:
+        stopped_mid = False
+        if mode == "Side-by-Side":
+            for i, pair in enumerate(hist):
+                if not RUNTIME.is_playing:
+                    idx = (i - 1) if i > 0 else 0
+                    yield (
+                        *_render_history_frame(mode, idx),
+                        _scrub_slider_update(mode, index=idx, interactive=True),
+                    )
+                    stopped_mid = True
+                    break
+                rt, ru = pair
+                st = rt["state"]
+                su = ru["state"]
+                stats_pb = _playback_frame_stats(mode, pair, i, len(hist))
+                yield (
+                    build_road_svg(st, title="Trained (Playback)"),
+                    build_road_svg(su, title="Untrained (Playback)"),
+                    _broadcast_table(st),
+                    _state_json(st, 1),
+                    _state_json(st, 2),
+                    st["phase"],
+                    stats_pb,
+                    _scrub_slider_update(mode, index=i, interactive=False),
+                )
+                if delay > 0.0:
+                    time.sleep(delay)
+        else:
+            for i, item in enumerate(hist):
+                if not RUNTIME.is_playing:
+                    idx = (i - 1) if i > 0 else 0
+                    yield (
+                        *_render_history_frame(mode, idx),
+                        _scrub_slider_update(mode, index=idx, interactive=True),
+                    )
+                    stopped_mid = True
+                    break
+                frame_state = _history_frame_state(item)
+                title = "Trained Agent (Playback)" if mode == "Trained (RL)" else "Untrained Agent (Playback)"
+                stats_pb = _playback_frame_stats(mode, item, i, len(hist))
+                yield (
+                    build_road_svg(frame_state, title=title),
+                    "",
+                    _broadcast_table(frame_state),
+                    _state_json(frame_state, 1),
+                    _state_json(frame_state, 2),
+                    frame_state["phase"],
+                    stats_pb,
+                    _scrub_slider_update(mode, index=i, interactive=False),
+                )
+                if delay > 0.0:
+                    time.sleep(delay)
+        if stopped_mid:
+            break
+        if not RUNTIME.is_playing:
+            li = len(hist) - 1
             yield (
-                build_road_svg(st, title="Trained (Playback)"),
-                build_road_svg(su, title="Untrained (Playback)"),
-                _broadcast_table(st),
-                _state_json(st, 1),
-                _state_json(st, 2),
-                st["phase"],
-                f"Playback: step {st['timestep']} / {len(hist)} (pair)",
+                *_render_history_frame(mode, li),
+                _scrub_slider_update(mode, index=li, interactive=True),
             )
-            if delay > 0.0:
-                time.sleep(delay)
-    else:
-        for frame_state in hist:
-            if not RUNTIME.is_playing:
-                break
-            title = "Trained Agent (Playback)" if mode == "Trained (RL)" else "Untrained Agent (Playback)"
+            break
+        if not repeat_playback:
+            li = len(hist) - 1
             yield (
-                build_road_svg(frame_state, title=title),
-                "",
-                _broadcast_table(frame_state),
-                _state_json(frame_state, 1),
-                _state_json(frame_state, 2),
-                frame_state["phase"],
-                f"Playback: step {frame_state['timestep']} / {len(hist)}",
+                *_render_history_frame(mode, li),
+                _scrub_slider_update(mode, index=li, interactive=True),
             )
-            if delay > 0.0:
-                time.sleep(delay)
+            break
 
     RUNTIME.is_playing = False
 
@@ -408,7 +826,7 @@ def _reset(
     seed: int,
     *,
     interrupt_playback: bool = True,
-) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str, dict]:
     if interrupt_playback:
         RUNTIME.is_playing = False
     RUNTIME.done_trained = False
@@ -416,11 +834,24 @@ def _reset(
     RUNTIME.history_trained = []
     RUNTIME.history_untrained = []
     RUNTIME.history_side = []
+    RUNTIME.collision_ever_trained = False
+    RUNTIME.collision_ever_untrained = False
+    RUNTIME.last_rewards_trained = None
+    RUNTIME.last_infos_trained = None
+    RUNTIME.last_rewards_untrained = None
+    RUNTIME.last_infos_untrained = None
 
     RUNTIME.obs_trained = RUNTIME.env_trained.reset(seed=seed)
     RUNTIME.obs_untrained = RUNTIME.env_untrained.reset(seed=seed)
 
     state_t = RUNTIME.env_trained.state()
+    stats_md = _format_step_stats(
+        state_t,
+        None,
+        None,
+        collision_ever=False,
+        episode_done=False,
+    )
     return (
         build_road_svg(state_t, title="Trained Agent"),
         "",
@@ -428,7 +859,8 @@ def _reset(
         _state_json(state_t, 1),
         _state_json(state_t, 2),
         state_t["phase"],
-        "Episode reset.",
+        "### Episode reset\n\n" + stats_md,
+        gr.update(minimum=0, maximum=0, value=0, interactive=True),
     )
 
 
@@ -440,13 +872,19 @@ def _pause() -> str:
 def _set_scenario(
     scenario_name: str,
     seed: int,
-) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str, dict]:
     RUNTIME.is_playing = False
     RUNTIME.done_trained = False
     RUNTIME.done_untrained = False
     RUNTIME.history_trained = []
     RUNTIME.history_untrained = []
     RUNTIME.history_side = []
+    RUNTIME.collision_ever_trained = False
+    RUNTIME.collision_ever_untrained = False
+    RUNTIME.last_rewards_trained = None
+    RUNTIME.last_infos_trained = None
+    RUNTIME.last_rewards_untrained = None
+    RUNTIME.last_infos_untrained = None
     RUNTIME.scenario_name = scenario_name
 
     RUNTIME.env_trained = PlatoonEnv(scenario_name=scenario_name)
@@ -455,6 +893,13 @@ def _set_scenario(
     RUNTIME.obs_untrained = RUNTIME.env_untrained.reset(seed=int(seed))
 
     state_t = RUNTIME.env_trained.state()
+    stats_md = _format_step_stats(
+        state_t,
+        None,
+        None,
+        collision_ever=False,
+        episode_done=False,
+    )
     return (
         build_road_svg(state_t, title="Trained Agent"),
         "",
@@ -462,7 +907,8 @@ def _set_scenario(
         _state_json(state_t, 1),
         _state_json(state_t, 2),
         state_t["phase"],
-        f"Scenario switched to {scenario_name}. Episode reset.",
+        f"### Scenario switched to `{scenario_name}`\n\n" + stats_md,
+        gr.update(minimum=0, maximum=0, value=0, interactive=True),
     )
 
 
@@ -511,17 +957,32 @@ def build_app() -> gr.Blocks:
             play = gr.Button("Play")
             pause = gr.Button("Pause")
             reset = gr.Button("Reset")
+            repeat_playback = gr.Checkbox(value=False, label="Repeat playback")
+
+        playback_scrub = gr.Slider(
+            minimum=0,
+            maximum=0,
+            value=0,
+            step=1,
+            label="Playback frame (scrub recorded episode; drag and release)",
+        )
 
         play.click(
             fn=_play_loop,
-            inputs=[mode, speed, steps_per_frame, seed],
-            outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats],
+            inputs=[mode, speed, steps_per_frame, seed, repeat_playback],
+            outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats, playback_scrub],
         )
 
         scenario.change(
             fn=_set_scenario,
             inputs=[scenario, seed],
-            outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats],
+            outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats, playback_scrub],
+        )
+
+        mode.change(
+            fn=_on_mode_change,
+            inputs=[mode],
+            outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats, playback_scrub],
         )
 
         pause.click(fn=_pause, outputs=[stats])
@@ -529,6 +990,12 @@ def build_app() -> gr.Blocks:
         reset.click(
             fn=_reset,
             inputs=[seed],
+            outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats, playback_scrub],
+        )
+
+        playback_scrub.release(
+            fn=_on_playback_scrub,
+            inputs=[mode, playback_scrub],
             outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats],
         )
 

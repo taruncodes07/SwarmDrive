@@ -18,13 +18,15 @@ except Exception:  # pragma: no cover - fallback when OpenEnv is unavailable loc
 from config.settings import ROOT_DIR, load_settings
 from environment.communication import BroadcastLayer
 from environment.reward import RewardModel
-from environment.scenarios import Scenario01Brake, Scenario02Merge, Scenario03LowFriction
+from environment.scenarios import Scenario01Brake, Scenario02Merge, Scenario03Ambulance
 from environment.vehicle import Vehicle
 
 ACTION_REGEX = re.compile(
     r"ACTION:\s*accel_pedal:\s*([0-9]*\.?[0-9]+)\s*brake_pedal:\s*([0-9]*\.?[0-9]+)",
     re.IGNORECASE | re.MULTILINE,
 )
+LANE_CHANGE_REGEX = re.compile(r"lane_change:\s*(stay|left|right)", re.IGNORECASE)
+TARGET_LANE_REGEX = re.compile(r"target_lane:\s*([012])", re.IGNORECASE)
 
 
 class PlatoonEnv(Environment):
@@ -65,8 +67,8 @@ class PlatoonEnv(Environment):
             return Scenario01Brake(self.settings["scenario_01"])
         if scenario_name == "scenario_02_merge":
             return Scenario02Merge(self.settings["scenario_02"])
-        if scenario_name == "scenario_03_low_friction":
-            return Scenario03LowFriction(self.settings["scenario_03"])
+        if scenario_name == "scenario_03_ambulance":
+            return Scenario03Ambulance(self.settings["scenario_03"])
         raise ValueError(f"Unknown scenario: {scenario_name}")
 
     def _validate_manifest(self, manifest_path: Path) -> None:
@@ -118,6 +120,72 @@ class PlatoonEnv(Environment):
                     width=float(sim["vehicle_width"]),
                 ),
             }
+        elif self.scenario_name == "scenario_03_ambulance":
+            sc = self.settings["scenario_03"]
+            rng = np.random.default_rng(seed)
+            lane_sp = float(sc["lane_spacing_m"])
+            lead_x = float(sc.get("x_lead_min", 195.0)) + float(rng.uniform(0.0, 10.0))
+            x1 = lead_x - float(rng.uniform(24.0, 40.0))
+            x2 = x1 - float(rng.uniform(16.0, 32.0))
+            x3 = max(6.0, x2 - float(rng.uniform(48.0, 88.0)))
+            v_traffic = float(sc["lead_cruise_speed"])
+            v_amb0 = float(sc["ambulance_cruise_speed"]) * 0.92
+            lane_lead = 1
+            lane_1 = int(rng.integers(0, 3))
+            lane_2 = int(rng.integers(0, 3))
+            lane_amb = int(rng.integers(0, 3))
+            vl = float(sim["vehicle_length"])
+            vw = float(sim["vehicle_width"])
+            self.vehicles = {
+                0: Vehicle(
+                    car_id=0,
+                    x=lead_x,
+                    velocity=v_traffic,
+                    path_type="straight",
+                    length=vl,
+                    width=vw,
+                    lane=lane_lead,
+                    vehicle_role="passenger",
+                    emergency_siren=False,
+                    y=Scenario03Ambulance.lane_to_y(lane_lead, lane_sp),
+                ),
+                1: Vehicle(
+                    car_id=1,
+                    x=x1,
+                    velocity=v_traffic,
+                    path_type="straight",
+                    length=vl,
+                    width=vw,
+                    lane=lane_1,
+                    vehicle_role="passenger",
+                    emergency_siren=False,
+                    y=Scenario03Ambulance.lane_to_y(lane_1, lane_sp),
+                ),
+                2: Vehicle(
+                    car_id=2,
+                    x=x2,
+                    velocity=v_traffic,
+                    path_type="straight",
+                    length=vl,
+                    width=vw,
+                    lane=lane_2,
+                    vehicle_role="passenger",
+                    emergency_siren=False,
+                    y=Scenario03Ambulance.lane_to_y(lane_2, lane_sp),
+                ),
+                3: Vehicle(
+                    car_id=3,
+                    x=x3,
+                    velocity=v_amb0,
+                    path_type="straight",
+                    length=vl,
+                    width=vw,
+                    lane=lane_amb,
+                    vehicle_role="ambulance",
+                    emergency_siren=True,
+                    y=Scenario03Ambulance.lane_to_y(lane_amb, lane_sp),
+                ),
+            }
         else:
             init = self.settings["initial_conditions"]
             self.vehicles = {
@@ -152,6 +220,8 @@ class PlatoonEnv(Environment):
         self.broadcast_layer.clear()
 
         for vehicle in self.vehicles.values():
+            if self.scenario_name == "scenario_03_ambulance":
+                continue
             if hasattr(self.scenario, "get_y_position"):
                 vehicle.y = self.scenario.get_y_position(vehicle)
             else:
@@ -183,14 +253,32 @@ class PlatoonEnv(Environment):
             v_max=self.v_max,
         )
 
+        if self.scenario_name == "scenario_03_ambulance":
+            sc3 = self.settings["scenario_03"]
+            v_amb_max = float(sc3.get("ambulance_v_max", 32.0))
+            aa, ab = self.scenario.ambulance_controls(self.vehicles[3], self.phase)
+            self.vehicles[3].apply_action(
+                aa,
+                ab,
+                dt=self.dt,
+                max_acceleration=step_max_accel * 1.12,
+                max_deceleration=step_max_decel,
+                v_min=self.v_min,
+                v_max=v_amb_max,
+            )
+
         parse_logs: list[dict[str, Any]] = []
         parsed_actions: dict[int, tuple[float, float]] = {}
+        agent_prev_lane: dict[int, int] = {}
         for agent_id in (1, 2):
             raw_action = actions.get(f"agent_{agent_id}", "")
+            agent_prev_lane[agent_id] = self.vehicles[agent_id].lane
             accel, brake, parse_info = self._parse_action(raw_action, agent_id)
             parsed_actions[agent_id] = (accel, brake)
             if parse_info is not None:
                 parse_logs.append(parse_info)
+            if self.scenario_name == "scenario_03_ambulance":
+                self._apply_lane_intent(self.vehicles[agent_id], raw_action)
 
         for agent_id in (1, 2):
             accel, brake = parsed_actions[agent_id]
@@ -205,7 +293,9 @@ class PlatoonEnv(Environment):
             )
 
         for vehicle in self.vehicles.values():
-            if hasattr(self.scenario, "get_y_position"):
+            if self.scenario_name == "scenario_03_ambulance":
+                self._sync_lateral_to_lane(vehicle)
+            elif hasattr(self.scenario, "get_y_position"):
                 vehicle.y = self.scenario.get_y_position(vehicle)
             else:
                 vehicle.y = 0.0
@@ -230,6 +320,9 @@ class PlatoonEnv(Environment):
             lateral_sep = abs(ego.y - front.y)
             if hasattr(self.scenario, "x_merge"):
                 dist_merge = float(self.scenario.x_merge - ego.x)
+            amb_ctx = None
+            if self.scenario_name == "scenario_03_ambulance":
+                amb_ctx = self._ambulance_context(agent_id, agent_prev_lane[agent_id])
             terms = self.reward_model.compute(
                 ego=ego,
                 front=front,
@@ -239,6 +332,8 @@ class PlatoonEnv(Environment):
                 scenario_name=self.scenario_name,
                 lateral_separation=lateral_sep,
                 dist_to_merge=dist_merge,
+                global_collision=self._agent_in_collision(agent_id),
+                ambulance_ctx=amb_ctx,
             )
             rewards[f"agent_{agent_id}"] = terms.total
             infos[f"agent_{agent_id}"] = {
@@ -264,6 +359,10 @@ class PlatoonEnv(Environment):
                     "merge_rush_penalty": terms.merge_rush_penalty,
                     "merge_post_spacing_bonus": terms.merge_post_spacing_bonus,
                     "merge_approach_patience_bonus": terms.merge_approach_patience_bonus,
+                    "ambulance_clear_lane_bonus": terms.ambulance_clear_lane_bonus,
+                    "ambulance_blocking_penalty": terms.ambulance_blocking_penalty,
+                    "ambulance_yield_bonus": terms.ambulance_yield_bonus,
+                    "ambulance_pass_clear_bonus": terms.ambulance_pass_clear_bonus,
                 },
             }
 
@@ -284,10 +383,16 @@ class PlatoonEnv(Environment):
     def state(self) -> dict[str, Any]:
         collision = self._pairwise_collision_any()
         merge_layout = None
+        road_layout = None
         if self.scenario_name == "scenario_02_merge":
             merge_layout = {
                 "x_merge": float(self.settings["scenario_02"]["x_merge"]),
                 "y_start": float(self.settings["scenario_02"].get("y_start", 3.5)),
+            }
+        if self.scenario_name == "scenario_03_ambulance":
+            road_layout = {
+                "kind": "three_lane",
+                "lane_spacing_m": float(self.settings["scenario_03"]["lane_spacing_m"]),
             }
         return {
             "timestep": self.timestep,
@@ -297,6 +402,7 @@ class PlatoonEnv(Environment):
             "collision": collision,
             "dynamics": self._dynamics,
             "merge_layout": merge_layout,
+            "road_layout": road_layout,
             "vehicles": {
                 car_id: {
                     "x": vehicle.x,
@@ -308,6 +414,9 @@ class PlatoonEnv(Environment):
                     "length": vehicle.length,
                     "width": vehicle.width,
                     "path_type": vehicle.path_type,
+                    "lane": vehicle.lane,
+                    "vehicle_role": vehicle.vehicle_role,
+                    "emergency_siren": vehicle.emergency_siren,
                 }
                 for car_id, vehicle in self.vehicles.items()
             },
@@ -316,6 +425,53 @@ class PlatoonEnv(Environment):
 
     def close(self) -> None:
         return None
+
+    def _apply_lane_intent(self, vehicle: Vehicle, raw_action: str) -> None:
+        text = raw_action or ""
+        tm = TARGET_LANE_REGEX.search(text)
+        if tm:
+            vehicle.lane = int(np.clip(int(tm.group(1)), 0, 2))
+            return
+        lm = LANE_CHANGE_REGEX.search(text)
+        if lm:
+            word = lm.group(1).lower()
+            if word == "left":
+                vehicle.lane = max(0, vehicle.lane - 1)
+            elif word == "right":
+                vehicle.lane = min(2, vehicle.lane + 1)
+
+    def _sync_lateral_to_lane(self, vehicle: Vehicle) -> None:
+        sc = self.settings["scenario_03"]
+        lane_sp = float(sc["lane_spacing_m"])
+        ty = Scenario03Ambulance.lane_to_y(int(vehicle.lane), lane_sp)
+        max_dy = float(sc.get("max_lateral_speed_mps", 9.0)) * self.dt
+        vehicle.y += float(np.clip(ty - vehicle.y, -max_dy, max_dy))
+
+    def _ambulance_context(self, ego_id: int, prev_lane: int) -> dict[str, Any]:
+        amb = self.vehicles[3]
+        ego = self.vehicles[ego_id]
+        sc = self.settings["scenario_03"]
+        r_comm = float(sc["proximity_comm_range_m"])
+        dist = float(np.hypot(ego.x - amb.x, ego.y - amb.y))
+        heard = dist <= r_comm and bool(amb.emergency_siren)
+        amb_lane = int(amb.lane)
+        ego_lane = int(ego.lane)
+        long_cut = float(sc.get("blocking_longitudinal_m", 55.0))
+        blocking = bool(
+            ego_lane == amb_lane and amb.x < ego.x and (ego.x - amb.x) < long_cut
+        )
+        closing = bool((ego.velocity - amb.velocity) < -1.5)
+        passed = bool(amb.x > ego.x + ego.length)
+        changed = bool(ego.lane != prev_lane)
+        return {
+            "heard_siren": heard,
+            "ambulance_lane": amb_lane,
+            "ego_lane": ego_lane,
+            "blocking_ambulance_lane": blocking,
+            "ambulance_closing_fast": closing and blocking,
+            "ambulance_passed": passed,
+            "changed_lane_this_step": changed,
+        }
 
     def _effective_gap_for_merge(self, front: Vehicle, ego: Vehicle, gap_raw: float) -> float:
         if self.scenario_name != "scenario_02_merge":
@@ -344,6 +500,13 @@ class PlatoonEnv(Environment):
                     return True
         return False
 
+    def _agent_in_collision(self, agent_id: int) -> bool:
+        v = self.vehicles[agent_id]
+        for oid, o in self.vehicles.items():
+            if oid != agent_id and self._vehicles_collide_2d(v, o):
+                return True
+        return False
+
     def _build_observation(self, agent_id: int) -> str:
         ego = self.vehicles[agent_id]
         front = self.vehicles[agent_id - 1]
@@ -370,19 +533,58 @@ class PlatoonEnv(Environment):
         phase = self.scenario.get_phase(self.timestep)
         road_grip = float(self._dynamics.get("road_grip", 1.0))
         road_grade = float(self._dynamics.get("road_grade", 0.0))
+        lane_info = ""
+        amb_hint = ""
+        if self.scenario_name == "scenario_03_ambulance":
+            lane_info = (
+                f"ego_lane: {ego.lane} (0=left, 1=center, 2=right)\n"
+                "layout: three_lane_highway\n"
+            )
+            amb = self.vehicles[3]
+            dist_amb = float(np.hypot(ego.x - amb.x, ego.y - amb.y))
+            amb_hint = (
+                f"distance_to_ambulance_m: {dist_amb:.1f} | ambulance_lane: {amb.lane} | ambulance_siren: {amb.emergency_siren}\n"
+                "Peer list only includes ambulance packets when within proximity_comm_range (emergency V2V).\n"
+            )
         peer_lines = []
         for packet in self.broadcast_layer.receive_for(agent_id):
+            if self.scenario_name == "scenario_03_ambulance":
+                sc3 = self.settings["scenario_03"]
+                if str(packet.get("vehicle_role")) == "ambulance":
+                    dist = float(
+                        np.hypot(
+                            ego.x - float(packet["x_position"]),
+                            ego.y - float(packet["y_position"]),
+                        )
+                    )
+                    if dist > float(sc3["proximity_comm_range_m"]):
+                        continue
             peer_lines.append(
-                "Car {sender_id} | x={x_position:.2f} m | y={y_position:.2f} m | vel={velocity:.2f} m/s | "
+                "Car {sender_id} | role={vehicle_role} | lane={lane_index} | siren={emergency_siren} | "
+                "x={x_position:.2f} m | y={y_position:.2f} m | vel={velocity:.2f} m/s | "
                 "path={path_type} | accel_pedal={accel_pedal:.2f} | brake_pedal={brake_pedal:.2f} | "
                 "net_accel={net_acceleration:+.2f} m/s^2".format(**packet)
             )
         peer_block = "\n".join(peer_lines) if peer_lines else "<no broadcasts yet>"
 
+        action_tail = (
+            "Respond with your action in the exact format shown below. accel_pedal and brake_pedal cannot both be non-zero.\n"
+            "ACTION:\n"
+            "accel_pedal: <float 0.0-1.0>\n"
+            "brake_pedal: <float 0.0-1.0>\n"
+        )
+        if self.scenario_name == "scenario_03_ambulance":
+            action_tail += (
+                "lane_change: <stay|left|right>   OR   target_lane: <0|1|2>\n"
+                "(optional; default stay). At most one discrete lane shift intent per step.\n"
+            )
+
         return (
             f"[OBSERVATION - Agent {agent_id} - Step {self.timestep}]\n"
             f"scenario_name: {self.scenario_name}\n"
             f"scenario_phase: {phase}\n"
+            f"{lane_info}"
+            f"{amb_hint}"
             f"{merge_info}"
             f"road_grip:      {road_grip:.2f}\n"
             f"road_grade:     {road_grade:+.3f}\n"
@@ -397,12 +599,9 @@ class PlatoonEnv(Environment):
             f"gap_to_front:  {gap_to_front:.2f} m\n"
             f"desired_gap:   {desired_gap:.2f} m   (gap_error: {gap_error:+.2f} m)\n"
             f"front_velocity: {front_velocity:.2f} m/s\n"
-            f"[PEER BROADCASTS - physical state from end of step {self.timestep - 1}]\n"
+            f"[PEER BROADCASTS - physical state from end of prior step]\n"
             f"{peer_block}\n"
-            "Respond with your action in the exact format shown below. accel_pedal and brake_pedal cannot both be non-zero.\n"
-            "ACTION:\n"
-            "accel_pedal: <float 0.0-1.0>\n"
-            "brake_pedal: <float 0.0-1.0>\n"
+            f"{action_tail}"
         )
 
     def _parse_action(self, raw_action: str, agent_id: int) -> tuple[float, float, dict[str, Any] | None]:
@@ -453,16 +652,20 @@ def _run_smoke_test(scenario_name: str | None = None) -> None:
         "net_acceleration",
         "length",
         "width",
+        "lane_index",
+        "vehicle_role",
+        "emergency_siren",
     }
 
     done = False
     step_count = 0
     while not done:
         state = env.state()
+        veh = state["vehicles"]
         actions: dict[str, str] = {}
         for agent_id in (1, 2):
-            ego = state["vehicles"][agent_id]
-            front = state["vehicles"][agent_id - 1]
+            ego = veh[agent_id]
+            front = veh[agent_id - 1]
             gap = front["x"] - ego["x"] - ego["length"]
             desired_gap = max(5.0, ego["velocity"] * 2.0)
             gap_error = gap - desired_gap
@@ -475,15 +678,26 @@ def _run_smoke_test(scenario_name: str | None = None) -> None:
             elif gap_error > 2.0:
                 accel = float(np.clip(gap_error / 25.0, 0.0, 1.0))
 
+            lane_line = ""
+            if env.scenario_name == "scenario_03_ambulance":
+                amb_lane = veh[3]["lane"]
+                dist_a = float(np.hypot(ego["x"] - veh[3]["x"], ego["y"] - veh[3]["y"]))
+                lc = "stay"
+                if dist_a < float(env.settings["scenario_03"]["proximity_comm_range_m"]) and int(ego["lane"]) == int(
+                    amb_lane
+                ):
+                    lc = "right" if int(ego["lane"]) < 2 else "left"
+                lane_line = f"lane_change: {lc}\n"
+
             actions[f"agent_{agent_id}"] = (
-                f"ACTION:\naccel_pedal: {accel:.2f}\nbrake_pedal: {brake:.2f}"
+                f"ACTION:\naccel_pedal: {accel:.2f}\nbrake_pedal: {brake:.2f}\n{lane_line}"
             )
 
         _, rewards, dones, infos = env.step(actions)
         step_count += 1
 
         for packet in env.state()["broadcast_buffer"]:
-            if set(packet.keys()) != required_broadcast_fields:
+            if not required_broadcast_fields.issubset(set(packet.keys())):
                 raise RuntimeError(f"Broadcast packet missing fields: {packet}")
 
         if step_count % 50 == 0 or dones["agent_1"]:
@@ -518,7 +732,7 @@ if __name__ == "__main__":
         "--scenario",
         type=str,
         default=None,
-        choices=["scenario_01_brake", "scenario_02_merge", "scenario_03_low_friction"],
+        choices=["scenario_01_brake", "scenario_02_merge", "scenario_03_ambulance"],
     )
     args = parser.parse_args()
 

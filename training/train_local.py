@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import inspect
 import json
+import math
 import os
 import random
 import re
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -86,6 +88,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train platoon RL model")
     parser.add_argument("--sft", action="store_true", help="Run SFT flow")
     parser.add_argument("--rl", action="store_true", help="Run RL flow")
+    parser.add_argument(
+        "--run-all",
+        action="store_true",
+        help="Run SFT then RL in one process (use with fast flags for ~1h demos)",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--episodes", type=int, default=500)
@@ -102,6 +109,55 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr-rl", type=float, default=5e-6)
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--grad-accum", type=int, default=8)
+    parser.add_argument(
+        "--sft-data",
+        type=str,
+        nargs="*",
+        default=None,
+        help="SFT jsonl files (default: all existing data/sft/scenario_0*.jsonl)",
+    )
+    parser.add_argument(
+        "--sft-max-samples",
+        type=int,
+        default=0,
+        help="Cap merged SFT rows after shuffle (0 = use all)",
+    )
+    parser.add_argument(
+        "--sft-warmup-steps",
+        type=int,
+        default=100,
+        help="Trainer warmup steps (lower for short SFT runs)",
+    )
+    parser.add_argument(
+        "--sft-logging-steps",
+        type=int,
+        default=5,
+        help="Log SFT progress (%% / elapsed / ETA / steps left) every N optimizer steps",
+    )
+    parser.add_argument(
+        "--sft-save-steps",
+        type=int,
+        default=50,
+        help="Save SFT state every N optimizer steps under checkpoints/sft_final/checkpoint-* (0 = only at end of each epoch)",
+    )
+    parser.add_argument(
+        "--resume-sft-from",
+        type=str,
+        default=None,
+        help="Resume SFT from a Hugging Face Trainer folder (e.g. checkpoints/sft_final/checkpoint-100)",
+    )
+    parser.add_argument(
+        "--rl-scenarios",
+        type=str,
+        default="scenario_01_brake,scenario_02_merge,scenario_03_ambulance",
+        help="Comma-separated scenarios; RL cycles per episode",
+    )
+    parser.add_argument(
+        "--eval-max-seeds",
+        type=int,
+        default=0,
+        help="Use only the first N eval seeds from config (0 = all). Lower for faster multi-scenario eval.",
+    )
     parser.add_argument(
         "--report-to",
         type=str,
@@ -120,6 +176,57 @@ def seed_everything(seed: int) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def _format_hms(total_seconds: float) -> str:
+    if total_seconds != total_seconds or total_seconds < 0:
+        return "--"
+    sec = int(round(total_seconds))
+    h, rem = divmod(sec, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h}h {m:02d}m {s:02d}s"
+    if m:
+        return f"{m}m {s:02d}s"
+    return f"{s}s"
+
+
+def _trainer_progress_callback(label: str) -> Any:
+    from transformers import TrainerCallback
+
+    class _ProgressCallback(TrainerCallback):
+        def on_train_begin(self, args: Any, state: Any, control: Any, **kwargs: Any) -> None:
+            self._t0 = time.perf_counter()
+            ms = int(getattr(state, "max_steps", -1) or -1)
+            print(
+                f"[{label}] started | max_optimizer_steps={ms} "
+                f"| progress log every {args.logging_steps} step(s)",
+                flush=True,
+            )
+
+        def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> None:
+            ms = int(getattr(state, "max_steps", 0) or 0)
+            step = int(state.global_step)
+            if ms <= 0:
+                return
+            ls = max(1, int(getattr(args, "logging_steps", 1) or 1))
+            if step % ls != 0:
+                return
+            elapsed = time.perf_counter() - self._t0
+            left = max(0, ms - step)
+            pct = 100.0 * step / ms
+            eta_s = (elapsed / step) * left if step > 0 else 0.0
+            print(
+                f"[{label}] {pct:.1f}% complete | optimizer step {step}/{ms} | steps left {left} | "
+                f"elapsed {_format_hms(elapsed)} | ETA {_format_hms(eta_s)}",
+                flush=True,
+            )
+
+        def on_train_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> None:
+            elapsed = time.perf_counter() - self._t0
+            print(f"[{label}] finished | total elapsed {_format_hms(elapsed)}", flush=True)
+
+    return _ProgressCallback()
 
 
 def append_jsonl(path: Path, record: dict[str, Any]) -> None:
@@ -254,45 +361,73 @@ def load_base_model_and_tokenizer(
     return model, tokenizer
 
 
-def build_sft_dataset(dataset_path: Path) -> Dataset:
+def default_sft_jsonl_paths() -> list[Path]:
+    base = ROOT_DIR / "data" / "sft"
+    candidates = [
+        base / "scenario_01.jsonl",
+        base / "scenario_02.jsonl",
+        base / "scenario_03.jsonl",
+    ]
+    return [p for p in candidates if p.exists()]
+
+
+def build_sft_dataset(
+    dataset_paths: list[Path],
+    max_samples: int = 0,
+    shuffle_seed: int = 42,
+) -> Any:
     Dataset = _import_training_stack()["Dataset"]
 
-    if not dataset_path.exists():
-        raise FileNotFoundError(f"SFT dataset not found: {dataset_path}")
+    if not dataset_paths:
+        raise FileNotFoundError(
+            "No SFT jsonl files found. Add data/sft/scenario_0*.jsonl or pass --sft-data. "
+            "Generate 02/03 via: python -m training.export_heuristic_sft"
+        )
 
     rows: list[dict[str, str]] = []
-    with dataset_path.open("r", encoding="utf-8") as handle:
-        for index, line in enumerate(handle, start=1):
-            text = line.strip()
-            if not text:
-                continue
-            item = json.loads(text)
-            required = {
-                "id",
-                "scenario",
-                "phase",
-                "agent_id",
-                "timestep",
-                "observation_text",
-                "reasoning",
-                "action_text",
-            }
-            missing = required - set(item.keys())
-            if missing:
-                raise ValueError(f"Invalid SFT record at line {index}, missing {sorted(missing)}")
+    for dataset_path in dataset_paths:
+        if not dataset_path.exists():
+            raise FileNotFoundError(f"SFT dataset not found: {dataset_path}")
 
-            rows.append(
-                {
-                    "text": (
-                        f"{item['observation_text']}\n"
-                        f"Reasoning:\n{item['reasoning']}\n"
-                        f"{item['action_text']}"
-                    )
+        with dataset_path.open("r", encoding="utf-8") as handle:
+            for index, line in enumerate(handle, start=1):
+                text = line.strip()
+                if not text:
+                    continue
+                item = json.loads(text)
+                required = {
+                    "id",
+                    "scenario",
+                    "phase",
+                    "agent_id",
+                    "timestep",
+                    "observation_text",
+                    "reasoning",
+                    "action_text",
                 }
-            )
+                missing = required - set(item.keys())
+                if missing:
+                    raise ValueError(
+                        f"Invalid SFT record in {dataset_path} line {index}, missing {sorted(missing)}"
+                    )
+
+                rows.append(
+                    {
+                        "text": (
+                            f"{item['observation_text']}\n"
+                            f"Reasoning:\n{item['reasoning']}\n"
+                            f"{item['action_text']}"
+                        )
+                    }
+                )
 
     if not rows:
         raise ValueError("SFT dataset is empty")
+
+    if max_samples > 0 and len(rows) > max_samples:
+        rng = random.Random(shuffle_seed)
+        rng.shuffle(rows)
+        rows = rows[:max_samples]
 
     return Dataset.from_list(rows)
 
@@ -303,34 +438,69 @@ def run_sft(args: argparse.Namespace) -> None:
     TrainingArguments = stack["TrainingArguments"]
     SFTTrainer = stack["SFTTrainer"]
 
-    print("Starting SFT fine-tuning")
-    data_path = ROOT_DIR / "data" / "sft" / "scenario_01.jsonl"
+    print("Starting SFT fine-tuning (progress lines: %%, elapsed, ETA, optimizer steps left).", flush=True)
+    if args.sft_data:
+        data_paths = [Path(p).expanduser() for p in args.sft_data]
+    else:
+        data_paths = default_sft_jsonl_paths()
+    print(f"SFT files ({len(data_paths)}): {[str(p) for p in data_paths]}")
     output_dir = ROOT_DIR / "checkpoints" / "sft_final"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset = build_sft_dataset(data_path)
+    dataset = build_sft_dataset(
+        data_paths,
+        max_samples=args.sft_max_samples,
+        shuffle_seed=args.seed,
+    )
+    n_rows = len(dataset)
+    print(f"SFT training rows: {n_rows}")
+    eff_batch = max(1, int(args.batch_size) * int(args.grad_accum))
+    steps_per_epoch = max(1, math.ceil(n_rows / eff_batch))
+    approx_steps = steps_per_epoch * int(args.epochs)
+    print(
+        f"[SFT] Preflight: ~{approx_steps} optimizer steps expected "
+        f"(~{steps_per_epoch}/epoch × {args.epochs} epochs, rows={n_rows}, eff_batch≈{eff_batch})",
+        flush=True,
+    )
+
     model, tokenizer = load_base_model_and_tokenizer(args.base_model, args.max_seq_len)
 
     report_to = resolve_report_to(args.report_to)
+    if args.sft_save_steps > 0:
+        save_kwargs: dict[str, Any] = {
+            "save_strategy": "steps",
+            "save_steps": int(args.sft_save_steps),
+            "save_total_limit": 5,
+        }
+        print(
+            f"[SFT] Intermediate saves every {args.sft_save_steps} steps → {output_dir}\\checkpoint-*",
+            flush=True,
+        )
+    else:
+        save_kwargs = {"save_strategy": "epoch"}
+        print("[SFT] Saves only at end of each training epoch (no step checkpoints).", flush=True)
+
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.lr_sft,
         num_train_epochs=args.epochs,
-        warmup_steps=100,
+        warmup_steps=args.sft_warmup_steps,
         lr_scheduler_type="cosine",
-        logging_steps=10,
-        save_strategy="epoch",
+        logging_steps=args.sft_logging_steps,
+        disable_tqdm=True,
         bf16=torch.cuda.is_available(),
         fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
         report_to=report_to,
+        **save_kwargs,
     )
 
     trainer_kwargs: dict[str, Any] = {
         "model": model,
         "train_dataset": dataset,
         "args": training_args,
+        "callbacks": [_trainer_progress_callback("SFT")],
     }
     sft_sig = inspect.signature(SFTTrainer.__init__)
     if "tokenizer" in sft_sig.parameters:
@@ -344,7 +514,19 @@ def run_sft(args: argparse.Namespace) -> None:
 
     trainer = SFTTrainer(**trainer_kwargs)
 
-    trainer.train()
+    resume_ckpt: str | None = None
+    if getattr(args, "resume_sft_from", None):
+        resume_ckpt = str(Path(args.resume_sft_from).expanduser())
+        if not Path(resume_ckpt).exists():
+            print(f"[WARN] --resume-sft-from path missing: {resume_ckpt}; starting SFT from scratch.", flush=True)
+            resume_ckpt = None
+        else:
+            print(f"[SFT] Resuming from {resume_ckpt}", flush=True)
+
+    if resume_ckpt:
+        trainer.train(resume_from_checkpoint=resume_ckpt)
+    else:
+        trainer.train()
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
 
@@ -440,6 +622,7 @@ def apply_grpo_style_update(
         num_train_epochs=1,
         logging_steps=5,
         save_strategy="no",
+        disable_tqdm=True,
         report_to=report_to,
         bf16=torch.cuda.is_available(),
         fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
@@ -449,6 +632,7 @@ def apply_grpo_style_update(
         "model": model,
         "train_dataset": dataset,
         "args": training_args,
+        "callbacks": [_trainer_progress_callback("RL-update")],
     }
     sft_sig = inspect.signature(SFTTrainer.__init__)
     if "tokenizer" in sft_sig.parameters:
@@ -497,6 +681,7 @@ def try_native_grpo_update(
             num_generations=max(2, group_size),
             max_completion_length=64,
             logging_steps=5,
+            disable_tqdm=True,
             report_to=[],
         )
 
@@ -585,12 +770,20 @@ def run_episode(
     return metrics, prompts
 
 
-def evaluate(agent: LLMAgent, eval_seeds: list[int]) -> dict[str, float]:
-    env = PlatoonEnv()
+def evaluate(
+    agent: LLMAgent,
+    eval_seeds: list[int],
+    scenarios: list[str] | None = None,
+) -> dict[str, float]:
+    scenario_list = scenarios if scenarios else [None]
     rows: list[EpisodeMetrics] = []
-    for seed in eval_seeds:
-        episode_metrics, _ = run_episode(env, agent, episode_seed=seed, temperature=0.0, collect_prompts=False)
-        rows.append(episode_metrics)
+    for scenario_name in scenario_list:
+        env = PlatoonEnv(scenario_name=scenario_name) if scenario_name else PlatoonEnv()
+        for seed in eval_seeds:
+            episode_metrics, _ = run_episode(
+                env, agent, episode_seed=seed, temperature=0.0, collect_prompts=False
+            )
+            rows.append(episode_metrics)
 
     if not rows:
         return {
@@ -689,16 +882,35 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
         max_new_tokens=args.max_new_tokens,
     )
 
-    env = PlatoonEnv()
-    eval_seeds = settings.get("evaluation", {}).get("seeds", list(range(1001, 1011)))
+    rl_scenarios = [s.strip() for s in args.rl_scenarios.split(",") if s.strip()]
+    if not rl_scenarios:
+        rl_scenarios = ["scenario_01_brake"]
+
+    eval_seeds = list(settings.get("evaluation", {}).get("seeds", list(range(1001, 1011))))
+    if args.eval_max_seeds > 0:
+        eval_seeds = eval_seeds[: args.eval_max_seeds]
     max_prompts_per_update = int(settings.get("training_runtime", {}).get("max_prompts_per_update", 400))
     prompt_buffer: list[str] = []
 
     low_collision_windows = 0
+    episode_wall_times: list[float] = []
+    total_env_steps = 0
+    rl_t0 = time.perf_counter()
+    print(
+        f"[RL] started | episodes planned={args.episodes} | progress after each episode: "
+        f"%%, elapsed, ETA, episodes left, sim env steps (approx remaining)",
+        flush=True,
+    )
 
     for episode in range(1, args.episodes + 1):
+        ep_iter_start = time.perf_counter()
+        scenario_name = rl_scenarios[(episode - 1) % len(rl_scenarios)]
+        env = PlatoonEnv(scenario_name=scenario_name)
         episode_seed = args.seed + episode
-        print(f"[RL] episode {episode}/{args.episodes} start seed={episode_seed}", flush=True)
+        print(
+            f"[RL] episode {episode}/{args.episodes} scenario={scenario_name} seed={episode_seed}",
+            flush=True,
+        )
         metrics, prompts = run_episode(
             env,
             agent,
@@ -707,6 +919,7 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
             collect_prompts=True,
         )
         metrics.episode = episode
+        total_env_steps += metrics.steps
         prompt_buffer.extend(prompts)
 
         proxy_loss = max(0.0, -metrics.mean_reward / 300.0)
@@ -773,7 +986,7 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
             )
 
         if episode % args.eval_every == 0:
-            eval_metrics = evaluate(agent, eval_seeds=eval_seeds)
+            eval_metrics = evaluate(agent, eval_seeds=eval_seeds, scenarios=rl_scenarios)
             append_jsonl(metrics_path, {"event": "evaluation", "episode": episode, **eval_metrics})
             print(
                 f"[RL] episode {episode} eval collision_rate={eval_metrics['collision_rate']:.3f} "
@@ -796,7 +1009,12 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
                         "reason": "collision_rate_below_0_05_for_3_windows",
                     },
                 )
-                print("Early stopping criterion met.")
+                print(
+                    "Early stopping criterion met | "
+                    f"[RL] episode {episode}/{args.episodes} | "
+                    f"elapsed {_format_hms(time.perf_counter() - rl_t0)}",
+                    flush=True,
+                )
                 break
 
         if episode % args.checkpoint_every == 0:
@@ -812,6 +1030,43 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
                 if uploaded:
                     print(f"[RL] episode {episode} checkpoint uploaded to {hf_username}/platoon-qwen-rl", flush=True)
 
+        ep_iter_s = time.perf_counter() - ep_iter_start
+        episode_wall_times.append(ep_iter_s)
+        remaining_eps = args.episodes - episode
+        elapsed_rl = time.perf_counter() - rl_t0
+        pct_rl = 100.0 * episode / args.episodes
+        avg_env = total_env_steps / episode
+        est_env_left = int(round(avg_env * remaining_eps)) if remaining_eps > 0 else 0
+
+        if remaining_eps > 0:
+            avg_s = sum(episode_wall_times) / len(episode_wall_times)
+            eta_s = avg_s * remaining_eps
+            print(
+                f"[RL] {pct_rl:.1f}% complete | episodes {episode}/{args.episodes} "
+                f"(episodes left {remaining_eps}) | sim env steps done {total_env_steps} "
+                f"(~{est_env_left} env steps left @ avg {avg_env:.1f}/ep) | "
+                f"elapsed {_format_hms(elapsed_rl)} | ETA {_format_hms(eta_s)} | "
+                f"last episode wall {_format_hms(ep_iter_s)}",
+                flush=True,
+            )
+        else:
+            print(
+                f"[RL] 100% complete | episodes {episode}/{args.episodes} | "
+                f"sim env steps total {total_env_steps} | elapsed {_format_hms(elapsed_rl)}",
+                flush=True,
+            )
+
+    final_ckpt = ROOT_DIR / "checkpoints" / "rl_final"
+    final_ckpt.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(str(final_ckpt))
+    tokenizer.save_pretrained(str(final_ckpt))
+    print(f"[RL] Final adapter saved to {final_ckpt}", flush=True)
+    hf_username = read_hf_username()
+    if hf_username and hf_username != "your_hf_username":
+        uploaded = maybe_upload(final_ckpt, f"{hf_username}/platoon-qwen-rl", "Upload final RL adapter")
+        if uploaded:
+            print(f"[RL] Final adapter uploaded to {hf_username}/platoon-qwen-rl", flush=True)
+
     plot_training_curves(metrics_path, reward_png, loss_png)
     print("RL training completed")
 
@@ -821,15 +1076,34 @@ def main() -> None:
     args = parse_args()
     os.environ["REPORT_TO"] = args.report_to
 
-    if args.sft == args.rl:
-        raise ValueError("Specify exactly one mode: --sft or --rl")
+    if args.run_all:
+        args_sft = argparse.Namespace(**vars(args))
+        args_rl = argparse.Namespace(**vars(args))
+        args_sft.sft = True
+        args_sft.rl = False
+        args_rl.sft = False
+        args_rl.rl = True
+    elif args.sft == args.rl:
+        raise ValueError("Specify exactly one mode: --sft or --rl, or use --run-all")
 
     settings = load_settings()
     seed_everything(args.seed)
 
-    if args.sft:
+    if args.run_all:
+        pipeline_t0 = time.perf_counter()
+        run_sft(args_sft)
+        print(
+            f"[pipeline] SFT phase done | elapsed {_format_hms(time.perf_counter() - pipeline_t0)}",
+            flush=True,
+        )
+        run_rl(args_rl, settings)
+        print(
+            f"[pipeline] SFT+RL complete | total elapsed {_format_hms(time.perf_counter() - pipeline_t0)}",
+            flush=True,
+        )
+    elif args.sft:
         run_sft(args)
-    if args.rl:
+    elif args.rl:
         run_rl(args, settings)
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -18,6 +19,9 @@ class Vehicle:
     brake_pedal: float = 0.0
     net_acceleration: float = 0.0
     last_net_acceleration: float = 0.0
+    lane: int = 1  # 0=left, 1=center, 2=right (three-lane convention)
+    vehicle_role: str = "passenger"  # "passenger", "ambulance"
+    emergency_siren: bool = False
 
     def apply_action(
         self,
@@ -56,4 +60,7 @@ class Vehicle:
             "net_acceleration": float(self.net_acceleration),
             "length": float(self.length),
             "width": float(self.width),
+            "lane_index": int(self.lane),
+            "vehicle_role": str(self.vehicle_role),
+            "emergency_siren": bool(self.emergency_siren),
         }

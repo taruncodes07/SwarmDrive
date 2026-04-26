@@ -51,6 +51,10 @@ reward:
   merge_post_spacing_bonus: 0.45
   merge_post_min_gap_m: 4.0
   merge_approach_patience_bonus: 0.08
+  ambulance_clear_lane_bonus: 0.55
+  ambulance_blocking_penalty: -1.2
+  ambulance_yield_lane_bonus: 0.45
+  ambulance_pass_clear_bonus: 0.35
 scenario_01:
   steady_end: 18
   brake_end: 38
@@ -76,19 +80,23 @@ scenario_02:
   merge_success_bonus: 4.0
   merge_efficiency_weight: 0.22
 scenario_03:
-  steady_end: 10
-  downhill_gain_end: 22
-  low_friction_end: 44
-  cutin_emergency_end: 60
+  steady_end: 8
+  approach_end: 38
+  pass_end: 62
   episode_end: 80
-  lead_cruise_speed: 15.0
-  downhill_target_speed: 18.5
-  lead_low_speed: 6.0
+  lane_spacing_m: 3.7
+  lead_cruise_speed: 14.0
   lead_cruise_accel_pedal: 0.1
-  downhill_accel_pedal: 0.32
-  lead_low_friction_brake_pedal: 0.55
-  lead_emergency_brake_pedal: 0.95
-  lead_recovery_accel_pedal: 0.65
+  ambulance_cruise_speed: 16.0
+  ambulance_urgent_speed: 26.0
+  ambulance_accel_pedal: 0.88
+  ambulance_v_max: 32.0
+  proximity_comm_range_m: 75.0
+  blocking_longitudinal_m: 55.0
+  max_lateral_speed_mps: 9.0
+  x_lead_min: 195.0
+  x_agent_spread_m: 22.0
+  x_ambulance_start_max: 35.0
 logging:
   metrics_path: results/metrics.jsonl
 evaluation:
