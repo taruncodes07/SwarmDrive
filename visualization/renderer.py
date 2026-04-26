@@ -104,15 +104,8 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
     )
 
     if state.get("collision"):
-        chunks.append("<rect x='0' y='0' width='100%' height='100%' fill='#dc2626' opacity='0.25'/>")
-        chunks.append(
-            f"<text x='{width/2}' y='{height/2}' font-size='48' font-family='Verdana' fill='#ffffff' text-anchor='middle' font-weight='bold' filter='drop-shadow(0 4px 4px rgba(0,0,0,0.5))'>💥 CRASHED</text>"
-        )
-    elif state.get("done") or (state.get("timestep", 0) >= state.get("max_steps", 80) - 1):
-        chunks.append("<rect x='0' y='0' width='100%' height='100%' fill='#22c55e' opacity='0.15'/>")
-        chunks.append(
-            f"<text x='{width/2}' y='{height/2}' font-size='48' font-family='Verdana' fill='#15803d' text-anchor='middle' font-weight='bold'>✅ SCENARIO PASSED</text>"
-        )
+        chunks.append("<rect x='0' y='0' width='100%' height='100%' fill='#dc2626' opacity='0.16'/>")
+        chunks.append("<text x='760' y='35' font-size='20' font-family='Verdana' fill='#b91c1c'>COLLISION</text>")
 
     for car_id in sorted(vehicles.keys()):
         vehicle = vehicles[car_id]

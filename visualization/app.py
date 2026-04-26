@@ -183,9 +183,7 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
                 {"agent_1": out1.action_text, "agent_2": out2.action_text}
             )
             RUNTIME.done_trained = dones["agent_1"]
-            status = "❌ CRASHED" if dones.get("agent_1") and RUNTIME.env_trained.state().get("collision") else ("✅ PASSED" if dones.get("agent_1") else "RUNNING")
             summary = (
-                f"Status: {status}\\n"
                 f"Total logged steps: {len(RUNTIME.history)}\\n"
                 f"Last reward A1={rewards['agent_1']:.3f}, A2={rewards['agent_2']:.3f}\\n"
                 f"Final gap errors A1={infos['agent_1']['gap_error']:.2f}, A2={infos['agent_2']['gap_error']:.2f}"
@@ -215,9 +213,7 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
                 {"agent_1": out1.action_text, "agent_2": out2.action_text}
             )
             RUNTIME.done_untrained = dones["agent_1"]
-            status = "❌ CRASHED" if dones.get("agent_1") and RUNTIME.env_untrained.state().get("collision") else ("✅ PASSED" if dones.get("agent_1") else "RUNNING")
             summary = (
-                f"Status: {status}\\n"
                 f"Total logged steps: {len(RUNTIME.history)}\\n"
                 f"Last reward A1={rewards['agent_1']:.3f}, A2={rewards['agent_2']:.3f}\\n"
                 f"Gap errors A1={infos['agent_1']['gap_error']:.2f}, A2={infos['agent_2']['gap_error']:.2f}"
