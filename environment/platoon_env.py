@@ -29,6 +29,26 @@ LANE_CHANGE_REGEX = re.compile(r"lane_change:\s*(stay|left|right)", re.IGNORECAS
 TARGET_LANE_REGEX = re.compile(r"target_lane:\s*([012])", re.IGNORECASE)
 MOVE_LEFT_REGEX = re.compile(r"move_left:\s*(0|1|false|true|no|yes)\b", re.IGNORECASE)
 MOVE_RIGHT_REGEX = re.compile(r"move_right:\s*(0|1|false|true|no|yes)\b", re.IGNORECASE)
+_LOOSE_ACCEL = re.compile(r"accel(?:_pedal)?\s*[:=]\s*([+\-]?[0-9]*\.?[0-9]+)", re.IGNORECASE)
+_LOOSE_BRAKE = re.compile(r"brake(?:_pedal)?\s*[:=]\s*([+\-]?[0-9]*\.?[0-9]+)", re.IGNORECASE)
+_FLOATS = re.compile(r"[+\-]?[0-9]*\.?[0-9]+")
+
+
+def _normalize_action_text(raw: str) -> str:
+    """Repair frequent malformed ACTION blocks from LLM output (see results/metrics.jsonl)."""
+    if not raw:
+        return ""
+    t = raw
+    # Typo: "accel_pedal: brake_pedal: 0.85" — treat trailing number as brake, zero accel.
+    t = re.sub(
+        r"(?im)accel_pedal:\s*brake_pedal:\s*([0-9]*\.?[0-9]+)",
+        r"accel_pedal: 0.0\nbrake_pedal: \1",
+        t,
+    )
+    # Duplicate label lines the model sometimes emits.
+    t = re.sub(r"(?im)(accel_pedal:\s*)accel_pedal:\s*", r"\1", t)
+    t = re.sub(r"(?im)(brake_pedal:\s*)brake_pedal:\s*", r"\1", t)
+    return t
 
 
 class PlatoonEnv(Environment):
@@ -45,6 +65,7 @@ class PlatoonEnv(Environment):
         self.max_deceleration = float(sim_cfg["max_deceleration"])
         self.min_desired_gap = float(sim_cfg["min_desired_gap"])
         self.headway_seconds = float(sim_cfg["headway_seconds"])
+        self.follower_safety_clamp = bool(sim_cfg.get("follower_safety_clamp", True))
 
         self.scenario_name = scenario_name or str(self.settings.get("scenario_active", "scenario_01_brake"))
         self.scenario = self._build_scenario(self.scenario_name)
@@ -281,6 +302,8 @@ class PlatoonEnv(Environment):
             raw_action = actions.get(f"agent_{agent_id}", "")
             agent_prev_lane[agent_id] = self.vehicles[agent_id].lane
             accel, brake, parse_info = self._parse_action(raw_action, agent_id)
+            if self.follower_safety_clamp:
+                accel, brake = self._safety_clamp_follower(agent_id, accel, brake)
             parsed_actions[agent_id] = (accel, brake)
             if parse_info is not None:
                 parse_logs.append(parse_info)
@@ -649,16 +672,80 @@ class PlatoonEnv(Environment):
             f"{action_tail}"
         )
 
+    def _parse_action_loose(self, text: str) -> tuple[float, float] | None:
+        am = _LOOSE_ACCEL.search(text)
+        bm = _LOOSE_BRAKE.search(text)
+        if am and bm:
+            return float(am.group(1)), float(bm.group(1))
+        if am and not bm:
+            return float(am.group(1)), 0.0
+        if bm and not am:
+            return 0.0, float(bm.group(1))
+        nums = [float(x) for x in _FLOATS.findall(text)]
+        if len(nums) >= 2:
+            return nums[0], nums[1]
+        if len(nums) == 1:
+            return nums[0], 0.0
+        return None
+
+    def _safety_clamp_follower(self, agent_id: int, accel: float, brake: float) -> tuple[float, float]:
+        """Raise braking when bumper gap is critically tight (longitudinal rear-end guard)."""
+        ego = self.vehicles[agent_id]
+        front = self.vehicles[agent_id - 1]
+        gap_raw = self.reward_model.gap_to_front(front, ego)
+        gap = self._effective_gap_for_merge(front, ego, gap_raw)
+        desired = self.reward_model.desired_gap(
+            ego_velocity=ego.velocity,
+            min_gap=self.min_desired_gap,
+            headway_seconds=self.headway_seconds,
+        )
+        gap_error = gap - desired
+        closing = float(ego.velocity - front.velocity)
+        a = float(np.clip(accel, 0.0, 1.0))
+        b = float(np.clip(brake, 0.0, 1.0))
+        if gap_error < -1.0:
+            need = float(
+                np.clip(
+                    (-gap_error) / 14.0 + max(0.0, closing - 0.4) / 10.0,
+                    0.25,
+                    0.95,
+                )
+            )
+            if b < need:
+                b = need
+                a = min(a, 0.12)
+        if gap_error < -3.5:
+            b = max(b, 0.5)
+            a = 0.0
+        if gap_error < -6.0:
+            b = max(b, 0.72)
+            a = 0.0
+        if a > 0.0 and b > 0.0:
+            a = 0.0
+        return float(np.clip(a, 0.0, 1.0)), float(np.clip(b, 0.0, 1.0))
+
     def _parse_action(self, raw_action: str, agent_id: int) -> tuple[float, float, dict[str, Any] | None]:
-        text = raw_action or ""
+        text = _normalize_action_text(raw_action or "")
         match = ACTION_REGEX.search(text)
         if not match:
-            return 0.0, 0.0, {
-                "event": "parse_failure",
+            loose = self._parse_action_loose(text)
+            if loose is None:
+                return 0.0, 0.0, {
+                    "event": "parse_failure",
+                    "timestep": self.timestep,
+                    "agent_id": agent_id,
+                    "raw_action": raw_action or "",
+                    "resolution": "default_coast",
+                }
+            accel = float(np.clip(loose[0], 0.0, 1.0))
+            brake = float(np.clip(loose[1], 0.0, 1.0))
+            if accel > 0.0 and brake > 0.0:
+                accel = 0.0
+            return accel, brake, {
+                "event": "parse_recovered",
                 "timestep": self.timestep,
                 "agent_id": agent_id,
-                "raw_action": text,
-                "resolution": "default_coast",
+                "resolution": "loose_parser",
             }
 
         accel = float(np.clip(float(match.group(1)), 0.0, 1.0))

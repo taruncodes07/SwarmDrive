@@ -11,6 +11,8 @@ simulation:
   max_deceleration: 8.0
   min_desired_gap: 5.0
   headway_seconds: 2.0
+  # When true: fix common bad LLM ACTION lines + add minimum brake if gap is critically tight (helps without retraining).
+  follower_safety_clamp: true
 scenario_active: scenario_01_brake
 initial_conditions:
   car_0:
