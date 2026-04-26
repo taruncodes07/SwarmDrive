@@ -122,7 +122,7 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
         "recover": "#22d3ee",
         "rebound": "#4ade80",
         "ambulance_approach": "#f472b6",
-        "ambulance_pass": "#fb7185",
+        "ambulance_overtaking": "#fb7185",
         "post_pass": "#34d399",
     }
     phase_color = phase_colors.get(phase, "#64748b")

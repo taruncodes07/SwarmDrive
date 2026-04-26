@@ -336,6 +336,8 @@ def _broadcast_table(state: dict[str, Any]) -> list[list[Any]]:
                 float(packet["accel_pedal"]),
                 float(packet["brake_pedal"]),
                 float(packet["net_acceleration"]),
+                int(packet.get("lane_index", 1)),
+                str(packet.get("lateral_intent", "—")),
             ]
         )
     return rows
@@ -998,10 +1000,19 @@ def build_app() -> gr.Blocks:
 
         with gr.Row():
             broadcast = gr.Dataframe(
-                headers=["sender", "x", "velocity", "accel_pedal", "brake_pedal", "net_accel"],
-                datatype=["number", "number", "number", "number", "number", "number"],
+                headers=[
+                    "sender",
+                    "x",
+                    "velocity",
+                    "accel_pedal",
+                    "brake_pedal",
+                    "net_accel",
+                    "lane",
+                    "lateral_intent",
+                ],
+                datatype=["number", "number", "number", "number", "number", "number", "number", "str"],
                 row_count=(5, "dynamic"),
-                col_count=(6, "fixed"),
+                column_count=8,
                 label="Broadcast Feed",
             )
 

@@ -22,7 +22,7 @@ class Scenario03Ambulance:
         # Do not use pass_end for post_pass — time-only cutoff showed "post_pass" while AMB was still behind.
         if vehicles is not None and self._ambulance_cleared_both_followers(vehicles):
             return "post_pass"
-        return "ambulance_pass"
+        return "ambulance_overtaking"
 
     @staticmethod
     def _ambulance_cleared_both_followers(vehicles: dict[int, Vehicle]) -> bool:
@@ -46,7 +46,7 @@ class Scenario03Ambulance:
     def ambulance_controls(self, amb: Vehicle, phase: str) -> tuple[float, float]:
         """Aggressive response driving; faster during pass phase."""
         v_target = float(self.cfg["ambulance_cruise_speed"])
-        if phase in {"ambulance_approach", "ambulance_pass"}:
+        if phase in {"ambulance_approach", "ambulance_overtaking"}:
             v_target = float(self.cfg["ambulance_urgent_speed"])
         if amb.velocity < v_target - 0.5:
             return float(self.cfg.get("ambulance_accel_pedal", 0.85)), 0.0

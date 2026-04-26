@@ -445,6 +445,7 @@ class PlatoonEnv(Environment):
 
     def _apply_lane_intent(self, vehicle: Vehicle, raw_action: str) -> None:
         text = raw_action or ""
+        vehicle.last_lateral = "—"
 
         def _truthy(token: str) -> bool:
             return token.strip().lower() in ("1", "true", "yes")
@@ -452,6 +453,7 @@ class PlatoonEnv(Environment):
         tm = TARGET_LANE_REGEX.search(text)
         if tm:
             vehicle.lane = int(np.clip(int(tm.group(1)), 0, 2))
+            vehicle.last_lateral = f"target_lane:{vehicle.lane}"
             return
         ml = MOVE_LEFT_REGEX.search(text)
         mr = MOVE_RIGHT_REGEX.search(text)
@@ -459,20 +461,27 @@ class PlatoonEnv(Environment):
             v_l = bool(ml and _truthy(ml.group(1)))
             v_r = bool(mr and _truthy(mr.group(1)))
             if v_l and v_r:
+                vehicle.last_lateral = "move_conflict"
                 return
             if v_l:
                 vehicle.lane = max(0, vehicle.lane - 1)
+                vehicle.last_lateral = "move_left"
                 return
             if v_r:
                 vehicle.lane = min(2, vehicle.lane + 1)
+                vehicle.last_lateral = "move_right"
                 return
         lm = LANE_CHANGE_REGEX.search(text)
         if lm:
             word = lm.group(1).lower()
             if word == "left":
                 vehicle.lane = max(0, vehicle.lane - 1)
+                vehicle.last_lateral = "lane_left"
             elif word == "right":
                 vehicle.lane = min(2, vehicle.lane + 1)
+                vehicle.last_lateral = "lane_right"
+            else:
+                vehicle.last_lateral = "lane_stay"
 
     def _sync_lateral_to_lane(self, vehicle: Vehicle) -> None:
         sc = self.settings["scenario_03"]
@@ -689,6 +698,7 @@ def _run_smoke_test(scenario_name: str | None = None) -> None:
         "length",
         "width",
         "lane_index",
+        "lateral_intent",
         "vehicle_role",
         "emergency_siren",
     }

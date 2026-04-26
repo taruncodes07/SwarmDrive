@@ -22,6 +22,7 @@ class Vehicle:
     lane: int = 1  # 0=left, 1=center, 2=right (three-lane convention)
     vehicle_role: str = "passenger"  # "passenger", "ambulance"
     emergency_siren: bool = False
+    last_lateral: str = "—"  # last discrete lane intent applied (broadcast / UI)
 
     def apply_action(
         self,
@@ -61,6 +62,7 @@ class Vehicle:
             "length": float(self.length),
             "width": float(self.width),
             "lane_index": int(self.lane),
+            "lateral_intent": str(self.last_lateral),
             "vehicle_role": str(self.vehicle_role),
             "emergency_siren": bool(self.emergency_siren),
         }

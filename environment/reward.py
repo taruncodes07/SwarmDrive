@@ -89,8 +89,13 @@ class RewardModel:
         in_steady = phase in {"steady", "steady_2"}
 
         gap_abs = abs(gap_error)
-        gap_over = max(0.0, gap_abs - (gap_deadband if in_steady else 0.0))
-        gap_error_penalty = -min(gap_over, self.reward_cfg["gap_error_cap"]) * self.reward_cfg["gap_error_weight"]
+        eff_deadband = gap_deadband if in_steady else 0.0
+        eff_gap_w = float(self.reward_cfg["gap_error_weight"])
+        if scenario_name == "scenario_03_ambulance":
+            eff_deadband = max(eff_deadband, 5.0)
+            eff_gap_w *= 0.38
+        gap_over = max(0.0, gap_abs - eff_deadband)
+        gap_error_penalty = -min(gap_over, self.reward_cfg["gap_error_cap"]) * eff_gap_w
 
         speed_abs = abs(ego.velocity - front.velocity)
         speed_over = max(0.0, speed_abs - (speed_deadband if in_steady else 0.0))
@@ -139,7 +144,7 @@ class RewardModel:
                 "cutin_emergency",
                 "merge_zone",
                 "ambulance_approach",
-                "ambulance_pass",
+                "ambulance_overtaking",
             }:
                 hazard_multiplier = float(self.reward_cfg.get("hazard_ttc_multiplier", 1.5))
             ttc_penalty = -shortfall * float(self.reward_cfg.get("ttc_weight", 0.5)) * hazard_multiplier
@@ -199,7 +204,7 @@ class RewardModel:
             passed = bool(ambulance_ctx.get("ambulance_passed"))
             changed_lane = bool(ambulance_ctx.get("changed_lane_this_step"))
 
-            if heard and ego_lane != amb_lane and phase in {"ambulance_approach", "ambulance_pass"}:
+            if heard and ego_lane != amb_lane and phase in {"ambulance_approach", "ambulance_overtaking"}:
                 ambulance_clear_lane_bonus = float(self.reward_cfg.get("ambulance_clear_lane_bonus", 0.55))
 
             if heard and blocking and closing:

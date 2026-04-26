@@ -122,6 +122,31 @@ class LLMAgent:
             self.model.generation_config.top_k = None
         self._log(f"Model set to eval (total init {time.time() - load_t0:.1f}s)")
 
+    def _system_for_observation(self, observation_text: str) -> str:
+        if "scenario_03_ambulance" in observation_text:
+            return (
+                "You control a vehicle on a three-lane highway with an emergency ambulance. "
+                "Reply with ONLY an ACTION block (no markdown, no explanation).\n"
+                "First lines must be exactly:\n"
+                "ACTION:\n"
+                "accel_pedal: <float 0.0-1.0>\n"
+                "brake_pedal: <float 0.0-1.0>\n"
+                "Then optionally add ANY of these lines you need (omit if not changing lane):\n"
+                "move_left: false OR true\n"
+                "move_right: false OR true\n"
+                "lane_change: stay OR left OR right\n"
+                "target_lane: 0 OR 1 OR 2\n"
+                "At most one of move_left / move_right may be true."
+            )
+        return self._system_instruction
+
+    @staticmethod
+    def _slice_action_block(text: str) -> str:
+        lo = text.lower().find("action:")
+        if lo < 0:
+            return ""
+        return text[lo:].strip()
+
     def act(self, observation_text: str, temperature: float = 0.0) -> AgentOutput:
         return self.act_batch([observation_text], temperature=temperature)[0]
 
@@ -143,8 +168,12 @@ class LLMAgent:
         input_ids = inputs["input_ids"]
         attention_mask = inputs["attention_mask"]
 
+        max_new = self.max_new_tokens
+        if any("scenario_03_ambulance" in (t or "") for t in observation_texts):
+            max_new = max(max_new, 96)
+
         generation_kwargs = {
-            "max_new_tokens": self.max_new_tokens,
+            "max_new_tokens": max_new,
             "eos_token_id": self.tokenizer.eos_token_id,
             "pad_token_id": self.tokenizer.pad_token_id,
         }
@@ -186,7 +215,11 @@ class LLMAgent:
                 continue
 
             accel, brake = parsed
-            action_text = f"ACTION:\naccel_pedal: {accel:.2f}\nbrake_pedal: {brake:.2f}"
+            block = LLMAgent._slice_action_block(normalized_tail)
+            if block.lower().startswith("action:"):
+                action_text = block
+            else:
+                action_text = f"ACTION:\naccel_pedal: {accel:.2f}\nbrake_pedal: {brake:.2f}"
             results.append(
                 AgentOutput(
                     raw_text=normalized_tail,
@@ -208,17 +241,18 @@ class LLMAgent:
             "ACTION:\n"
             "accel_pedal: "
         )
+        system_msg = self._system_for_observation(observation_text)
         if getattr(self.tokenizer, "chat_template", None):
             prompt = self.tokenizer.apply_chat_template(
                 [
-                    {"role": "system", "content": self._system_instruction},
+                    {"role": "system", "content": system_msg},
                     {"role": "user", "content": user_prompt},
                 ],
                 tokenize=False,
                 add_generation_prompt=True,
             )
         else:
-            prompt = f"{self._system_instruction}\n\n{user_prompt}"
+            prompt = f"{system_msg}\n\n{user_prompt}"
         return prompt
 
     @staticmethod

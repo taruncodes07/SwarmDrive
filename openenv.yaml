@@ -25,7 +25,7 @@ scenarios:
     description: "Three-lane road; agents hear ambulance via proximity V2V and must change lanes to yield"
     max_steps: 80
     num_llm_agents: 2
-    phases: [steady, ambulance_approach, ambulance_pass, post_pass]
+    phases: [steady, ambulance_approach, ambulance_overtaking, post_pass]
 model:
   base: Qwen/Qwen2.5-1.5B-Instruct
   sft_checkpoint: "${HF_USERNAME}/platoon-qwen-sft"
