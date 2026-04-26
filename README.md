@@ -270,8 +270,8 @@ SwarmDrive/
 ### Prerequisites
 
 - Python 3.11+
-- CUDA-capable GPU recommended (CPU fallback available for demo)
-- ~8 GB VRAM for 4-bit inference; ~16 GB for training
+- CUDA-capable GPU recommended; CPU fallback is supported for the demo but inference will be noticeably slower (~10× vs GPU)
+- ~8 GB VRAM for 4-bit inference; ~16 GB VRAM for training. If below these thresholds, the process may OOM — reduce `max_new_tokens` or switch to CPU mode by setting `device="cpu"` in `LLMAgent`
 
 ### 1. Install dependencies
 
