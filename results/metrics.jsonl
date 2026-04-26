@@ -53,3 +53,293 @@
 {"event": "parse_failure", "timestep": 9, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
 {"event": "parse_failure", "timestep": 10, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
 {"event": "parse_failure", "timestep": 10, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 11, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 11, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 12, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 12, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 13, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 13, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 14, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 14, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 15, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 15, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 16, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 16, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 17, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 17, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 18, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 18, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 19, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 19, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 20, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.85", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 20, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 21, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 21, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 22, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.85", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 22, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 23, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 23, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 24, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 24, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 25, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 25, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 26, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 26, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 27, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 27, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 28, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 28, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 29, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 29, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 30, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 30, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 31, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 31, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 32, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 32, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 33, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 33, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 34, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 34, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 35, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 35, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 36, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 36, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 37, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 37, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 38, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 38, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 39, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 39, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 40, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 40, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 41, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 41, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 42, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 42, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 43, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 43, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 44, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 44, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 45, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 45, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 46, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 46, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 47, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 47, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 48, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 48, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 49, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 49, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 50, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 50, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 51, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 51, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 52, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 52, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 53, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 53, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 54, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 54, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 55, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 55, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 56, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 56, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 57, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 57, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"episode": 1, "steps": 58, "collision": true, "total_reward_agent_1": -228.02328606219777, "total_reward_agent_2": 26.099999999999973, "mean_reward": -100.9616430310989, "final_gap_error_agent_1": -30.296000000000106, "final_gap_error_agent_2": 0.0, "mean_jerk": 0.0, "parse_failures": 0, "parse_failure_rate": 0.0, "event": "episode_end", "proxy_loss": 0.336538810103663}
+{"event": "parse_failure", "timestep": 0, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 0, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 1, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 2, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 2, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 3, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 3, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 4, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 4, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 5, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 5, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 6, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 7, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 7, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 8, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 8, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 9, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 9, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 10, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 10, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 11, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 12, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 12, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 13, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 13, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 14, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 14, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: brake_pedal: 0.00", "resolution": "default_coast"}
+{"episode": 2, "steps": 15, "collision": true, "total_reward_agent_1": -160.0, "total_reward_agent_2": -239.98000000000002, "mean_reward": -199.99, "final_gap_error_agent_1": 73.5, "final_gap_error_agent_2": -34.5, "mean_jerk": 0.0, "parse_failures": 3, "parse_failure_rate": 0.1, "event": "episode_end", "proxy_loss": 0.6666333333333334}
+{"event": "parse_failure", "timestep": 0, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 0, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 1, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 1, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 2, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 2, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 3, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 3, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 4, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 4, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 5, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 5, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 6, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 6, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 7, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 7, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 8, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 8, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 9, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 9, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 10, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 10, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 11, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 11, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 12, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 12, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 13, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 13, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 14, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 14, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 15, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 15, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 16, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 16, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 17, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 17, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 18, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 18, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 19, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 19, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 20, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 20, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 21, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 21, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 22, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 22, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 23, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 23, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 24, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 24, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 25, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 25, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 26, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 26, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 27, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 27, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 28, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 28, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 29, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 29, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 30, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 30, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 31, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 31, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 32, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 32, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 33, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 33, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 34, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 34, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 35, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 35, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 36, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 36, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 37, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 37, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 38, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 38, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 39, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 39, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 40, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 40, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 41, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 41, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 42, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 42, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 43, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 43, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 44, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 44, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 45, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 45, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 46, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 46, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 47, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 47, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 48, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 48, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 49, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 49, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 50, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 50, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 51, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 51, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 52, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 52, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 53, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 53, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 54, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 54, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 55, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 55, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 56, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 56, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 57, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 57, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 58, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 58, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 59, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 59, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 60, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 60, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 61, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 61, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 62, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 62, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 63, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 64, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 64, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 65, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 65, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 66, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 66, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 67, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 67, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 68, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 68, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 69, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 69, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 70, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 70, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 71, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 71, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 72, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 72, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 73, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 73, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 74, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 75, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 75, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 76, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 77, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 77, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 78, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 78, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 79, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 79, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 80, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 80, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 81, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 81, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 82, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay\ntarget_lane: 1", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 82, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 83, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 83, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 84, "agent_id": 1, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00", "resolution": "default_coast"}
+{"event": "parse_failure", "timestep": 84, "agent_id": 2, "raw_action": "ACTION:\naccel_pedal: accel_pedal: 0.00\nbrake_pedal: 0.00\nlane_change: stay", "resolution": "default_coast"}
