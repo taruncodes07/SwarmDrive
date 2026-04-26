@@ -367,8 +367,8 @@ Open `training/platoon_colab.ipynb` in Colab for a fully managed cloud training 
 
 ## 👥 Team OverFitters
 
-| Name | Role |
-| :--- | :--- |
+| Name | 
+| :--- | 
 | **Tarun Aadhithya** | 
 | **Tejash Pathak** | 
 | **Abhinandan Jaiswal** | 
