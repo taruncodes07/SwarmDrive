@@ -202,7 +202,6 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
 
     road_top = 158
     road_h = 168
-    vanish_y = road_top + road_h * 0.08
 
     chunks.append(
         f"<rect x='{margin}' y='{road_top}' width='{width - 2 * margin}' height='{road_h}' rx='14' fill='url(#roadMatte)' stroke='#1e293b' stroke-width='1'/>"
@@ -211,66 +210,51 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
     scenario = state.get("scenario", "")
     merge_layout = state.get("merge_layout") or {}
 
-    y_lo = road_top + road_h - 8
-    y_hi = road_top + 28
-    cx_panel = width * 0.5
-    usable_w = width - 2 * margin
-    # Symmetric “into the screen” taper: left edge stays left, right stays right (no crossing X).
-    w_near = usable_w * 0.36
-    w_far = usable_w * 0.11
-
-    def half_width_at_y(y: float) -> float:
-        span = y_lo - y_hi
-        if abs(span) < 1e-6:
-            return w_near
-        t = (y - y_hi) / span
-        t = max(0.0, min(1.0, t))
-        return w_far + t * (w_near - w_far)
-
-    def x_left_at_y(y: float) -> float:
-        return cx_panel - half_width_at_y(y)
-
-    def x_right_at_y(y: float) -> float:
-        return cx_panel + half_width_at_y(y)
+    lane_ref_y = road_top + road_h * 0.5
+    rx0 = margin + 12
+    rx1 = width - margin - 12
+    py_per_m = min(max((road_h - 32) / max(12.0, 1.0), 8.5), 14.0)
 
     edge_glow = (
-        f"stroke='#0ea5e9' stroke-width='3.5' stroke-linecap='round' opacity='0.9' filter='url(#laneGlow_{uid})'"
-    )
-    lane_line_style = (
-        f"stroke='#38bdf8' stroke-width='2' stroke-linecap='round' opacity='0.65' filter='url(#laneGlow_{uid})'"
+        f"stroke='#0ea5e9' stroke-width='3' stroke-linecap='round' opacity='0.88' filter='url(#laneGlow_{uid})'"
     )
 
     if scenario == "scenario_02_merge" and merge_layout:
+        half_lane = 17.0
+        y_main = lane_ref_y
+        y_mrg = lane_ref_y + float(merge_layout.get("y_start", 3.5)) * py_per_m
         xm = float(merge_layout.get("x_merge", 150.0))
-        merge_start_px = _scale_x(xm - 42.0, world_min, world_max, width, margin)
         merge_tip_px = _scale_x(xm, world_min, world_max, width, margin)
-        xl0, xl1 = x_left_at_y(y_lo), x_left_at_y(y_hi)
-        xr0, xr1 = x_right_at_y(y_lo), x_right_at_y(y_hi)
+        merge_tip_px = min(max(merge_tip_px, rx0 + 30), rx1 - 30)
+
+        for y_top, y_bot in ((y_main - half_lane, y_main + half_lane), (y_mrg - half_lane, y_mrg + half_lane)):
+            chunks.append(
+                f"<line x1='{rx0}' y1='{y_top}' x2='{rx1}' y2='{y_top}' {edge_glow}/>"
+            )
+            chunks.append(
+                f"<line x1='{rx0}' y1='{y_bot}' x2='{rx1}' y2='{y_bot}' {edge_glow}/>"
+            )
         chunks.append(
-            f"<path d='M {xl0} {y_lo} L {xl1} {y_hi} M {xr0} {y_lo} L {xr1} {y_hi}' {edge_glow}/>"
+            f"<line x1='{merge_tip_px}' y1='{y_main + half_lane}' x2='{merge_tip_px}' y2='{y_mrg - half_lane}' "
+            f"stroke='#38bdf8' stroke-width='2.5' stroke-linecap='round' opacity='0.75' filter='url(#laneGlow_{uid})'/>"
         )
-        # Merge ramp (right side): curve stays outside main right edge until merge
-        jx = min(max(merge_tip_px, margin + 40), width - margin - 40)
-        ramp_x0 = min(xr0 - 8, jx + 48)
+        dash = 12
+        off = (avg_x * 11) % (dash * 2)
         chunks.append(
-            f"<path d='M {ramp_x0} {y_lo + 10} Q {jx + 8} {(y_lo + y_hi) * 0.52}, {merge_start_px} {y_hi + 32}' "
-            f"fill='none' stroke='#0ea5e9' stroke-width='3' stroke-linecap='round' opacity='0.7' filter='url(#laneGlow_{uid})'/>"
+            f"<line x1='{rx0}' y1='{y_main}' x2='{rx1}' y2='{y_main}' stroke='#475569' stroke-width='2' "
+            f"stroke-dasharray='{dash} {dash}' stroke-dashoffset='{off}' opacity='0.5'/>"
         )
         chunks.append(
-            f"<path d='M {ramp_x0 + 14} {y_lo + 4} Q {jx + 18} {(y_lo + y_hi) * 0.5 - 4}, {merge_start_px + 14} {y_hi + 34}' "
-            f"fill='none' stroke='#38bdf8' stroke-width='1.5' stroke-linecap='round' opacity='0.5'/>"
+            f"<text x='{margin + 6}' y='{road_top + 16}' font-size='10' fill='#64748b' "
+            f"font-family='Segoe UI, system-ui, sans-serif'>Merge (top-down) · main + ramp · travel →</text>"
         )
     elif scenario == "scenario_03_ambulance" and (state.get("road_layout") or {}).get("kind") == "three_lane":
-        # Bird’s-eye highway: parallel lane lines (world +y → down-screen), not perspective taper.
         road_layout = state.get("road_layout") or {}
         lane_sp_m = float(road_layout.get("lane_spacing_m", 3.7))
-        py_per_m = min(max((road_h - 36) / max(3.0 * lane_sp_m, 0.1), 9.0), 18.0)
-        lane_ref_y = road_top + road_h * 0.5
-        rx0 = margin + 12
-        rx1 = width - margin - 12
+        py3 = min(max((road_h - 36) / max(3.0 * lane_sp_m, 0.1), 9.0), 18.0)
 
         def cy_from_world_y(wy: float) -> float:
-            return lane_ref_y + float(wy) * py_per_m
+            return lane_ref_y + float(wy) * py3
 
         outer_low = cy_from_world_y(-1.5 * lane_sp_m)
         div01 = cy_from_world_y(-0.5 * lane_sp_m)
@@ -293,36 +277,33 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
             f"stroke-width='2' stroke-dasharray='10 8' stroke-linecap='round' opacity='0.7' "
             f"filter='url(#laneGlow_{uid})'/>"
         )
-        # Travel direction (+x): subtle center ticks only on middle lane
         mid_y = cy_from_world_y(0.0)
-        tick_every = (rx1 - rx0) / 14.0
-        for k in range(1, 14):
-            tx = rx0 + k * tick_every
-            chunks.append(
-                f"<line x1='{tx}' y1='{mid_y - 3}' x2='{tx}' y2='{mid_y + 3}' "
-                f"stroke='#334155' stroke-width='1.2' opacity='0.45'/>"
-            )
+        dash = 10
+        off = (avg_x * 10) % (dash * 2)
+        chunks.append(
+            f"<line x1='{rx0}' y1='{mid_y}' x2='{rx1}' y2='{mid_y}' stroke='#475569' stroke-width='1.8' "
+            f"stroke-dasharray='{dash} {dash}' stroke-dashoffset='{off}' opacity='0.45'/>"
+        )
         chunks.append(
             f"<text x='{margin + 6}' y='{road_top + 16}' font-size='10' fill='#64748b' "
             f"font-family='Segoe UI, system-ui, sans-serif'>3-lane (top-down) · L0 / L1 / L2 · yield for AMB</text>"
         )
     else:
-        xl0, xl1 = x_left_at_y(y_lo), x_left_at_y(y_hi)
-        xr0, xr1 = x_right_at_y(y_lo), x_right_at_y(y_hi)
+        half_lane = 17.0
+        y_top = lane_ref_y - half_lane
+        y_bot = lane_ref_y + half_lane
+        chunks.append(f"<line x1='{rx0}' y1='{y_top}' x2='{rx1}' y2='{y_top}' {edge_glow}/>")
+        chunks.append(f"<line x1='{rx0}' y1='{y_bot}' x2='{rx1}' y2='{y_bot}' {edge_glow}/>")
+        dash = 12
+        off = (avg_x * 11) % (dash * 2)
         chunks.append(
-            f"<path d='M {xl0} {y_lo} L {xl1} {y_hi} M {xr0} {y_lo} L {xr1} {y_hi}' {edge_glow}/>"
+            f"<line x1='{rx0}' y1='{lane_ref_y}' x2='{rx1}' y2='{lane_ref_y}' stroke='#475569' stroke-width='2' "
+            f"stroke-dasharray='{dash} {dash}' stroke-dashoffset='{off}' opacity='0.5'/>"
         )
-        dash = 14
-        off = (avg_x * 12) % (dash * 2)
         chunks.append(
-            f"<path d='M {cx_panel} {y_lo} L {cx_panel} {y_hi}' stroke='#475569' stroke-width='2' "
-            f"stroke-dasharray='{dash} {dash}' stroke-dashoffset='{off}' opacity='0.55'/>"
+            f"<text x='{margin + 6}' y='{road_top + 16}' font-size='10' fill='#64748b' "
+            f"font-family='Segoe UI, system-ui, sans-serif'>Single-lane platoon (top-down) · travel →</text>"
         )
-
-    # Vanishing highlight
-    chunks.append(
-        f"<ellipse cx='{width / 2}' cy='{vanish_y}' rx='{width * 0.18}' ry='10' fill='#1e3a5f' opacity='0.25'/>"
-    )
 
     if state.get("collision"):
         chunks.append("<rect x='0' y='0' width='100%' height='100%' fill='#7f1d1d' opacity='0.22'/>")
@@ -331,23 +312,20 @@ def build_road_svg(state: dict[str, Any], title: str = "Platoon") -> str:
             f"font-family='Segoe UI, system-ui, sans-serif' fill='#fecaca'>COLLISION</text>"
         )
 
-    # Cars: draw in order so nearer (lower y_px) paint last
+    # Cars: draw in order so nearer (lower y_px) paint last (lateral matches bird’s-eye road)
     car_entries: list[tuple[float, float, int, dict[str, Any]]] = []
-    lane_center_y = road_top + road_h * 0.72
     s3_topdown = scenario == "scenario_03_ambulance" and (state.get("road_layout") or {}).get("kind") == "three_lane"
     road_layout_s3 = state.get("road_layout") or {}
     lane_sp_m_s3 = float(road_layout_s3.get("lane_spacing_m", 3.7))
     py_s3 = min(max((road_h - 36) / max(3.0 * lane_sp_m_s3, 0.1), 9.0), 18.0)
-    lane_ref_y_s3 = road_top + road_h * 0.5
     for car_id in sorted(vehicles.keys(), key=int):
         v = vehicles[car_id]
         x_pos = _scale_x(float(v.get("x", 0.0)), world_min, world_max, width, margin)
+        wy = float(v.get("y", 0.0))
         if s3_topdown:
-            wy = float(v.get("y", 0.0))
-            cy = lane_ref_y_s3 + wy * py_s3 + (float(car_id) * 0.35)
+            cy = lane_ref_y + wy * py_s3 + (float(car_id) * 0.35)
         else:
-            y_off = float(v.get("y", 0.0)) * 22.0
-            cy = lane_center_y + y_off * 0.35 + (float(car_id) * 1.2)
+            cy = lane_ref_y + wy * py_per_m + (float(car_id) * 0.4)
         car_entries.append((cy, x_pos, int(car_id), v))
     car_entries.sort(key=lambda t: t[0])
 

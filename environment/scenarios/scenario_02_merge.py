@@ -13,7 +13,7 @@ class Scenario02Merge:
         blend_off = float(cfg.get("merge_blend_start_offset_m", 38.0))
         self.merge_start_x = self.x_merge - blend_off
 
-    def get_phase(self, timestep: int) -> str:
+    def get_phase(self, timestep: int, vehicles: object = None) -> str:
         if timestep <= int(self.cfg["steady_end"]):
             return "steady"
         if timestep <= int(self.cfg["merge_zone_end"]):

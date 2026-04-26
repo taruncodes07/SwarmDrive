@@ -14,14 +14,28 @@ class Scenario03Ambulance:
     def lane_to_y(lane_index: int, lane_spacing_m: float) -> float:
         return float(lane_index - 1) * lane_spacing_m
 
-    def get_phase(self, timestep: int) -> str:
+    def get_phase(self, timestep: int, vehicles: dict[int, Vehicle] | None = None) -> str:
         if timestep <= int(self.cfg["steady_end"]):
             return "steady"
         if timestep <= int(self.cfg["approach_end"]):
             return "ambulance_approach"
-        if timestep <= int(self.cfg["pass_end"]):
-            return "ambulance_pass"
-        return "post_pass"
+        # Do not use pass_end for post_pass — time-only cutoff showed "post_pass" while AMB was still behind.
+        if vehicles is not None and self._ambulance_cleared_both_followers(vehicles):
+            return "post_pass"
+        return "ambulance_pass"
+
+    @staticmethod
+    def _ambulance_cleared_both_followers(vehicles: dict[int, Vehicle]) -> bool:
+        amb = vehicles.get(3)
+        if amb is None:
+            return False
+        for aid in (1, 2):
+            ego = vehicles.get(aid)
+            if ego is None:
+                return False
+            if not (float(amb.x) > float(ego.x) + float(ego.length)):
+                return False
+        return True
 
     def lead_controls(self, lead_vehicle: Vehicle, phase: str) -> tuple[float, float]:
         cruise = float(self.cfg["lead_cruise_speed"])

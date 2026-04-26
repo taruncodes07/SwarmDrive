@@ -7,7 +7,7 @@ class Scenario01Brake:
     def __init__(self, cfg: dict[str, float | int]) -> None:
         self.cfg = cfg
 
-    def get_phase(self, timestep: int) -> str:
+    def get_phase(self, timestep: int, vehicles: object = None) -> str:
         if timestep <= int(self.cfg["steady_end"]):
             return "steady"
         if timestep <= int(self.cfg["brake_end"]):

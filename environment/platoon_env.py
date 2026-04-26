@@ -73,6 +73,11 @@ class PlatoonEnv(Environment):
             return Scenario03Ambulance(self.settings["scenario_03"])
         raise ValueError(f"Unknown scenario: {scenario_name}")
 
+    def _compute_phase(self) -> str:
+        if self.scenario_name == "scenario_03_ambulance":
+            return self.scenario.get_phase(self.timestep, self.vehicles)
+        return self.scenario.get_phase(self.timestep)
+
     def _validate_manifest(self, manifest_path: Path) -> None:
         if not manifest_path.exists():
             raise ValueError(f"openenv.yaml missing: {manifest_path}")
@@ -218,7 +223,7 @@ class PlatoonEnv(Environment):
             }
 
         self.timestep = 0
-        self.phase = self.scenario.get_phase(self.timestep)
+        self.phase = self._compute_phase()
         self.broadcast_layer.clear()
 
         for vehicle in self.vehicles.values():
@@ -237,7 +242,7 @@ class PlatoonEnv(Environment):
     def step(
         self, actions: dict[str, str]
     ) -> tuple[dict[str, str], dict[str, float], dict[str, bool], dict[str, dict[str, Any]]]:
-        self.phase = self.scenario.get_phase(self.timestep)
+        self.phase = self._compute_phase()
         self._dynamics = self.scenario.dynamics_modifiers(self.phase)
         accel_scale = float(self._dynamics.get("accel_scale", 1.0))
         decel_scale = float(self._dynamics.get("decel_scale", 1.0))
@@ -372,6 +377,7 @@ class PlatoonEnv(Environment):
             self._append_metric(parse_log)
 
         self.timestep += 1
+        self.phase = self._compute_phase()
         done = collision or self.timestep >= self.max_steps
 
         obs = {
@@ -558,7 +564,7 @@ class PlatoonEnv(Environment):
             gap_note = f"(raw longitudinal gap {gap_raw:.2f} m — lateral offset; effective gap for learning: {gap_to_front:.2f} m)\n"
         front_velocity = front.velocity if agent_id > 0 else -1.0
 
-        phase = self.scenario.get_phase(self.timestep)
+        phase = self._compute_phase()
         road_grip = float(self._dynamics.get("road_grip", 1.0))
         road_grade = float(self._dynamics.get("road_grade", 0.0))
         lane_info = ""
