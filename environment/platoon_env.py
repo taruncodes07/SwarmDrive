@@ -804,8 +804,9 @@ class PlatoonEnv(Environment):
             )
         elif self.scenario_name == "scenario_02_merge" and phase == "post_merge":
             task_hint = (
-                "task_hint: After merge, track the main-lane front vehicle — if you are slower, "
-                "accelerate modestly to close the speed gap once spacing is safe.\n"
+                "task_hint: post_merge — you are on the main lane. If gap_error is positive you are too far back: "
+                "increase accel_pedal to match front_velocity and shrink gap_to_front toward desired_gap "
+                "(do not keep braking unless gap_error is clearly negative).\n"
             )
 
         return (

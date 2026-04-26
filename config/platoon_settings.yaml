@@ -38,8 +38,12 @@ reward:
   jerk_weight: 0.05
   steady2_recovery_bonus: 3.0
   recovery_catchup_bonus: 0.35
-  post_merge_catchup_bonus: 0.24
-  post_merge_main_catchup_bonus: 0.2
+  post_merge_catchup_bonus: 0.32
+  post_merge_main_catchup_bonus: 0.24
+  post_merge_gap_penalty_scale: 0.28
+  post_merge_speed_penalty_scale: 0.25
+  post_merge_velocity_recover_bonus: 0.62
+  post_merge_main_velocity_recover_bonus: 0.48
   comfort_penalty: -0.05
   alive_bonus: 0.08
   gap_tracking_bonus: 0.25
