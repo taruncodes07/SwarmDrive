@@ -13,6 +13,9 @@ simulation:
   headway_seconds: 2.0
   # When true: fix common bad LLM ACTION lines + add minimum brake if gap is critically tight (helps without retraining).
   follower_safety_clamp: true
+  # Scenario 03: if the model never issues lane_change/move_*, still step one lane away from a closing ambulance (rear-end guard).
+  ambulance_auto_yield: true
+  ambulance_yield_force_m: 52.0
 scenario_active: scenario_01_brake
 initial_conditions:
   car_0:
@@ -98,7 +101,9 @@ scenario_03:
   max_lateral_speed_mps: 9.0
   x_lead_min: 195.0
   x_agent_spread_m: 22.0
-  x_ambulance_start_max: 35.0
+  # Longitudinal distance (m) from agent 2's front to ambulance front at reset (random uniform).
+  ambulance_start_gap_min_m: 14.0
+  ambulance_start_gap_max_m: 28.0
 logging:
   metrics_path: results/metrics.jsonl
 evaluation:

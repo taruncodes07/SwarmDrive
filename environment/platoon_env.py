@@ -66,6 +66,8 @@ class PlatoonEnv(Environment):
         self.min_desired_gap = float(sim_cfg["min_desired_gap"])
         self.headway_seconds = float(sim_cfg["headway_seconds"])
         self.follower_safety_clamp = bool(sim_cfg.get("follower_safety_clamp", True))
+        self.ambulance_auto_yield = bool(sim_cfg.get("ambulance_auto_yield", True))
+        self.ambulance_yield_force_m = float(sim_cfg.get("ambulance_yield_force_m", 52.0))
 
         self.scenario_name = scenario_name or str(self.settings.get("scenario_active", "scenario_01_brake"))
         self.scenario = self._build_scenario(self.scenario_name)
@@ -155,7 +157,14 @@ class PlatoonEnv(Environment):
             lead_x = float(sc.get("x_lead_min", 195.0)) + float(rng.uniform(0.0, 10.0))
             x1 = lead_x - float(rng.uniform(24.0, 40.0))
             x2 = x1 - float(rng.uniform(16.0, 32.0))
-            x3 = max(6.0, x2 - float(rng.uniform(48.0, 88.0)))
+            # Smaller gap = ambulance starts closer behind the trailing agent (faster time-to-interaction).
+            gap_min = float(sc.get("ambulance_start_gap_min_m", 18.0))
+            gap_max = float(
+                sc.get("ambulance_start_gap_max_m", sc.get("x_ambulance_start_max", 40.0))
+            )
+            if gap_max < gap_min:
+                gap_max = gap_min
+            x3 = max(6.0, x2 - float(rng.uniform(gap_min, gap_max)))
             v_traffic = float(sc["lead_cruise_speed"])
             v_amb0 = float(sc["ambulance_cruise_speed"]) * 0.92
             lane_lead = 1
@@ -309,6 +318,8 @@ class PlatoonEnv(Environment):
                 parse_logs.append(parse_info)
             if self.scenario_name == "scenario_03_ambulance":
                 self._apply_lane_intent(self.vehicles[agent_id], raw_action)
+                if self.ambulance_auto_yield:
+                    self._maybe_force_ambulance_yield(agent_id, agent_prev_lane[agent_id])
 
         for agent_id in (1, 2):
             accel, brake = parsed_actions[agent_id]
@@ -512,6 +523,53 @@ class PlatoonEnv(Environment):
         ty = Scenario03Ambulance.lane_to_y(int(vehicle.lane), lane_sp)
         max_dy = float(sc.get("max_lateral_speed_mps", 9.0)) * self.dt
         vehicle.y += float(np.clip(ty - vehicle.y, -max_dy, max_dy))
+
+    def _lane_longitudinally_usable(self, ego_id: int, target_lane: int) -> bool:
+        """Rough check: no other vehicle already stacked in that lane near ego's x."""
+        ego = self.vehicles[ego_id]
+        sep = float(ego.length) * 0.85 + 2.5
+        for oid, o in self.vehicles.items():
+            if oid == ego_id:
+                continue
+            if int(o.lane) != int(target_lane):
+                continue
+            if abs(float(o.x) - float(ego.x)) < sep:
+                return False
+        return True
+
+    def _maybe_force_ambulance_yield(self, agent_id: int, prev_lane: int) -> None:
+        """Last-resort lateral escape when ego blocks a faster closing ambulance but the policy omits lane intent."""
+        if self.scenario_name != "scenario_03_ambulance":
+            return
+        if self.phase not in {"ambulance_approach", "ambulance_overtaking"}:
+            return
+        ego = self.vehicles[agent_id]
+        amb = self.vehicles[3]
+        ctx = self._ambulance_context(agent_id, prev_lane)
+        if not ctx["heard_siren"] or not ctx["blocking_ambulance_lane"]:
+            return
+        if not ctx["ambulance_closing_fast"]:
+            return
+        if int(ego.lane) != int(amb.lane):
+            return
+        nose_to_nose = float(ego.x - amb.x)
+        if nose_to_nose > self.ambulance_yield_force_m or nose_to_nose <= 0.0:
+            return
+
+        cur = int(ego.lane)
+        candidates: list[int]
+        if cur == 0:
+            candidates = [1]
+        elif cur == 2:
+            candidates = [1]
+        else:
+            candidates = [0, 2]
+
+        for cand in candidates:
+            if self._lane_longitudinally_usable(agent_id, cand):
+                ego.lane = cand
+                ego.last_lateral = "guard_yield"
+                return
 
     def _ambulance_context(self, ego_id: int, prev_lane: int) -> dict[str, Any]:
         amb = self.vehicles[3]
