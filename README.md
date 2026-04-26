@@ -1,3 +1,15 @@
+---
+title: SwarmDrive — Platoon RL Env
+emoji: 🚗
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: 4.42.0
+app_file: visualization/app.py
+pinned: false
+license: mit
+---
+
 <div align="center">
 
 # 🚗 SwarmDrive
