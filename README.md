@@ -20,15 +20,15 @@
 
 ## 📌 Overview
 
-**SwarmDrive** is a multi-agent reinforcement learning research platform that teaches a fleet of LLM-powered vehicles to cooperate safely in challenging highway scenarios — braking events, high-speed merges, and ambulance yielding.
+**SwarmDrive** is a multi-agent reinforcement learning research platform that teaches a fleet of LLM-powered vehicles to cooperate safely in challenging highway scenarios — braking events, high-speed merges, and emergency yielding.
 
 Unlike classical deep-RL policies that are opaque and brittle, SwarmDrive agents generate a **natural-language reasoning trace** before issuing control commands. Every pedal decision is explainable. Every coordination behaviour is auditable. This is the *Reasoning-to-Control* paradigm applied to safety-critical autonomy.
 
-**Who is it for?**
-- 🔬 RL / LLM researchers exploring embodied reasoning
-- 🚗 AV engineers studying cooperative multi-agent control
-- 🏆 Hackathon judges and investors evaluating frontier AI safety work
-- 👩‍💻 Open-source contributors building the next generation of interpretable autonomy
+---
+## 🚗 Why Today’s Autonomous Systems Still Underperform
+
+Most modern self-driving systems — including leading consumer AV stacks such as Tesla Autopilot/FSD — are primarily optimized **vehicle-by-vehicle**.Each car attempts to maximize its own safety, lane progress, and route efficiency using local perception and isolated decision-making.That works reasonably well for single-car autonomy.But traffic is not a single-agent problem.Real roads are crowded multi-agent systems where every selfish decision creates ripple effects:
+Today’s AV intelligence is often **individually smart, collectively inefficient**.
 
 ---
 
@@ -41,7 +41,6 @@ Unlike classical deep-RL policies that are opaque and brittle, SwarmDrive agents
 | **V2V Mesh Layer** | Structured Vehicle-to-Vehicle broadcast packets (velocity, net\_acceleration, lane\_intent) form a digital communication channel between all agents |
 | **3 Built-in Scenarios** | Brake Test, High-Speed Merge (zipper), and Ambulance Yield — each with distinct phases, reward shaping, and termination conditions |
 | **21-Component Reward Model** | Composite reward with anti-reward-hacking safeguards: alive bonus scaled to velocity prevents agents from parking to avoid penalties |
-| **Side-by-Side Dashboard** | Real-time Gradio UI comparing the trained RL agent against the bare base model in the same scenario — the contrast is stark |
 | **LoRA + 4-bit Quantization** | Efficient fine-tuning of Qwen2.5-1.5B on a single consumer GPU via PEFT and bitsandbytes |
 | **Docker-ready** | One-command containerised deployment, Gradio dashboard served on port 7860 |
 
@@ -56,6 +55,21 @@ Cooperative autonomous driving remains an open, hard problem:
 3. **Training Brittleness** — Standard Deep-RL reward shaping often produces *"safe but useless"* agents that park to avoid collision penalties or refuse to merge at all.
 
 Current approaches (rule-based planners, black-box PPO policies, or pure LLM prompting) each fail at one or more of these dimensions simultaneously.
+
+---
+## 🧠 Our Core Innovation: Cooperative Intelligence for Roads
+Instead of training one car to behave intelligently alone, we trained multiple autonomous agents to coordinate.
+SwarmDrive models traffic as a **multi-agent reinforcement learning environment** where vehicles learn:
+- merge negotiation
+- cooperative gap creation
+- chain-reaction avoidance
+- emergency corridor formation
+- shared right-of-way reasoning
+This transforms autonomy from:
+**"How do I win this lane?"**
+into:
+**"How do we optimize the road together?"**
+That shift from selfish autonomy to cooperative autonomy is the foundation of next-generation mobility systems.
 
 ---
 
@@ -84,32 +98,32 @@ The result is a system where cooperation emerges — vehicles slow to create zip
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│                  Gradio Dashboard                    │
+│                  Gradio Dashboard                   │
 │   Side-by-side: Trained Agent  vs  Base Model       │
 │   SVG Road Renderer  |  V2V Mesh Table  |  Rewards  │
 └────────────────────┬────────────────────────────────┘
                      │
 ┌────────────────────▼────────────────────────────────┐
 │              PlatoonEnv  (Gymnasium)                 │
-│  ┌──────────────┐   ┌─────────────┐   ┌──────────┐  │
-│  │ Vehicle      │   │ BroadcastLayer│  │ Scenarios│  │
-│  │ Dynamics     │──▶│ V2V Packets  │  │ 01/02/03 │  │
-│  │ (10 Hz sim)  │   │              │  │          │  │
-│  └──────────────┘   └──────┬───────┘  └────┬─────┘  │
+│  ┌──────────────┐   ┌─────────────┐   ┌──────────┐   │
+│  │ Vehicle     │    │BroadcastLayer│  │ Scenarios│   │
+│  │ Dynamics    │──▶│ V2V Packets  │  │ 01/02/03 │   │
+│  │ (10 Hz sim) │    │              │  │          │   │
+│  └──────────────┘   └──────┬───────┘  └────┬─────┘   │
 │                            │               │         │
 │                    ┌───────▼───────────────▼──────┐  │
-│                    │   Observation Prompt Builder  │  │
-│                    │   (structured 2048-token text)│  │
+│                    │  Observation Prompt Builder  │  │
+│                    │   structured 2048-token text)│  │
 │                    └───────────────┬──────────────┘  │
 └────────────────────────────────────┼─────────────────┘
                                      │
 ┌────────────────────────────────────▼─────────────────┐
 │                 LLMAgent  (llm_agent.py)              │
-│   Qwen2.5-1.5B-Instruct  +  LoRA Adapter (PEFT)      │
+│   Qwen2.5-1.5B-Instruct  +  LoRA Adapter (PEFT)       │
 │                                                       │
 │   1. Scenario-aware system prompt                     │
 │   2. Generate ACTION block  (accel / brake / lane)    │
-│   3. Optional private reasoning trace (post-hoc)     │
+│   3. Optional private reasoning trace (post-hoc)      │
 │   4. Robust multi-fallback action parser              │
 └────────────────────────────────────┬─────────────────┘
                                      │
@@ -122,8 +136,8 @@ The result is a system where cooperation emerges — vehicles slow to create zip
 ┌────────────────────────────────────▼─────────────────┐
 │             Training Pipeline  (train_local.py)       │
 │                                                       │
-│   Phase 1: Heuristic SFT  →  expert demonstrations   │
-│   Phase 2: GRPO rollouts  →  group relative scoring  │
+│   Phase 1: Heuristic SFT  →  expert demonstrations    │
+│   Phase 2: GRPO rollouts  →  group relative scoring   │
 │   Phase 3: LoRA update    →  4-bit quantised weights  │
 │                                                       │
 │   Metrics: JSONL logging  ·  W&B integration          │
