@@ -325,7 +325,7 @@ def _play_loop(
     sim_seed = int(seed) if seed is not None else 123
 
     if not hist:
-        yield _reset(sim_seed)
+        yield _reset(sim_seed, interrupt_playback=False)
         sim_guard = 0
         while not _episode_done_for_mode(mode) and sim_guard < max_steps:
             if not RUNTIME.is_playing:
@@ -404,8 +404,13 @@ def _play_loop(
     RUNTIME.is_playing = False
 
 
-def _reset(seed: int) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
-    RUNTIME.is_playing = False
+def _reset(
+    seed: int,
+    *,
+    interrupt_playback: bool = True,
+) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+    if interrupt_playback:
+        RUNTIME.is_playing = False
     RUNTIME.done_trained = False
     RUNTIME.done_untrained = False
     RUNTIME.history_trained = []
@@ -530,7 +535,10 @@ def build_app() -> gr.Blocks:
     return demo
 
 
+# Hugging Face Spaces imports this module and expects a Gradio app in `demo`.
+# Queue is required for generator/streaming event handlers (e.g. Play).
+demo = build_app()
+demo.queue(default_concurrency_limit=1)
+
 if __name__ == "__main__":
-    app = build_app()
-    app.queue(default_concurrency_limit=1)
-    app.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(server_name="0.0.0.0", server_port=7860)
