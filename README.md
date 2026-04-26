@@ -24,7 +24,7 @@
 
 [🌐 Live Demo](https://huggingface.co/spaces/tarunaadhithya/platoon-rl-env) |
 [📓 Google Colab](https://colab.research.google.com/github/taruncodes07/SwarmDrive/blob/main/training/platoon_colab.ipynb) |
-[💻 GitHub Repo](https://github.com/taruncodes07/SwarmDrive) |
+[💻 GitHub Repo](https://github.com/taruncodes07/SwarmDrive) 
 
 
 </div>
