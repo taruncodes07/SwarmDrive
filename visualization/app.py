@@ -27,6 +27,8 @@ from config.settings import ROOT_DIR
 from environment.platoon_env import PlatoonEnv
 from visualization.renderer import build_road_svg
 
+AVAILABLE_SCENARIOS = ["scenario_01_brake", "scenario_02_shockwave", "scenario_03_low_friction"]
+
 
 @dataclass
 class AppRuntime:
@@ -37,6 +39,7 @@ class AppRuntime:
     trained_agent: LLMAgent
     untrained_agent: LLMAgent
     mode: str = "Trained (RL)"
+    scenario_name: str = "scenario_01_brake"
     done_trained: bool = False
     done_untrained: bool = False
     is_playing: bool = False
@@ -118,8 +121,9 @@ def _load_runtime() -> tuple[AppRuntime, str]:
     trained_agent = LLMAgent(base_model_name=base_model, adapter_path=trained_adapter)
     untrained_agent = LLMAgent(base_model_name=base_model, adapter_path=None)
 
-    env_trained = PlatoonEnv()
-    env_untrained = PlatoonEnv()
+    default_scenario = "scenario_01_brake"
+    env_trained = PlatoonEnv(scenario_name=default_scenario)
+    env_untrained = PlatoonEnv(scenario_name=default_scenario)
 
     runtime = AppRuntime(
         env_trained=env_trained,
@@ -128,6 +132,7 @@ def _load_runtime() -> tuple[AppRuntime, str]:
         obs_untrained=env_untrained.reset(seed=123),
         trained_agent=trained_agent,
         untrained_agent=untrained_agent,
+        scenario_name=default_scenario,
         history=[],
     )
 
@@ -188,7 +193,8 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
             summary = "Episode finished. Click Reset."
 
         state = RUNTIME.env_trained.state()
-        time.sleep(delay)
+        if delay > 0.0:
+            time.sleep(delay)
         return (
             build_road_svg(state, title="Trained Agent"),
             "",
@@ -215,7 +221,8 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
             summary = "Episode finished. Click Reset."
 
         state = RUNTIME.env_untrained.state()
-        time.sleep(delay)
+        if delay > 0.0:
+            time.sleep(delay)
         return (
             build_road_svg(state, title="Untrained Agent"),
             "",
@@ -251,7 +258,8 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
 
     state_t = RUNTIME.env_trained.state()
     state_u = RUNTIME.env_untrained.state()
-    time.sleep(delay)
+    if delay > 0.0:
+        time.sleep(delay)
 
     summary = (
         "Side-by-side\\n"
@@ -275,6 +283,7 @@ def _step_once(mode: str, delay: float) -> tuple[str, str, list[list[Any]], dict
 def _play_loop(
     mode: str,
     delay: float,
+    steps_per_frame: int,
     max_steps: int = 400,
 ) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
     RUNTIME.is_playing = True
@@ -282,7 +291,22 @@ def _play_loop(
         if not RUNTIME.is_playing:
             break
 
-        frame = _step_once(mode, delay)
+        frame = None
+        for _ in range(max(1, int(steps_per_frame))):
+            frame = _step_once(mode, 0.0)
+            if mode == "Trained (RL)" and RUNTIME.done_trained:
+                break
+            if mode == "Untrained (base)" and RUNTIME.done_untrained:
+                break
+            if mode == "Side-by-Side" and RUNTIME.done_trained and RUNTIME.done_untrained:
+                break
+
+        if frame is None:
+            break
+
+        if delay > 0.0:
+            time.sleep(delay)
+
         yield frame
 
         if mode == "Trained (RL)" and RUNTIME.done_trained:
@@ -321,6 +345,33 @@ def _pause() -> str:
     return "Paused. Click Play to continue stepping."
 
 
+def _set_scenario(
+    scenario_name: str,
+    seed: int,
+) -> tuple[str, str, list[list[Any]], dict[str, Any], dict[str, Any], str, str]:
+    RUNTIME.is_playing = False
+    RUNTIME.done_trained = False
+    RUNTIME.done_untrained = False
+    RUNTIME.history = []
+    RUNTIME.scenario_name = scenario_name
+
+    RUNTIME.env_trained = PlatoonEnv(scenario_name=scenario_name)
+    RUNTIME.env_untrained = PlatoonEnv(scenario_name=scenario_name)
+    RUNTIME.obs_trained = RUNTIME.env_trained.reset(seed=int(seed))
+    RUNTIME.obs_untrained = RUNTIME.env_untrained.reset(seed=int(seed))
+
+    state_t = RUNTIME.env_trained.state()
+    return (
+        build_road_svg(state_t, title="Trained Agent"),
+        "",
+        _broadcast_table(state_t),
+        _state_json(state_t, 1),
+        _state_json(state_t, 2),
+        state_t["phase"],
+        f"Scenario switched to {scenario_name}. Episode reset.",
+    )
+
+
 def build_app() -> gr.Blocks:
     with gr.Blocks(title="Platoon RL Env") as demo:
         gr.Markdown("# Platoon RL Environment Demo")
@@ -332,7 +383,13 @@ def build_app() -> gr.Blocks:
                 value="Trained (RL)",
                 label="Mode Selector",
             )
-            speed = gr.Slider(0.05, 1.0, value=0.2, step=0.05, label="Playback delay (s)")
+            scenario = gr.Dropdown(
+                choices=AVAILABLE_SCENARIOS,
+                value="scenario_01_brake",
+                label="Scenario",
+            )
+            speed = gr.Slider(0.0, 0.5, value=0.08, step=0.01, label="Playback delay (s)")
+            steps_per_frame = gr.Slider(1, 4, value=2, step=1, label="Simulation steps per frame")
             seed = gr.Number(value=123, precision=0, label="Episode seed")
 
         with gr.Row():
@@ -363,7 +420,13 @@ def build_app() -> gr.Blocks:
 
         play.click(
             fn=_play_loop,
-            inputs=[mode, speed],
+            inputs=[mode, speed, steps_per_frame],
+            outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats],
+        )
+
+        scenario.change(
+            fn=_set_scenario,
+            inputs=[scenario, seed],
             outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats],
         )
 

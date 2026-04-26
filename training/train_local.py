@@ -144,9 +144,9 @@ def resolve_report_to(report_to_arg: str) -> list[str]:
     return []
 
 
-def maybe_upload(local_dir: Path, repo_id: str, commit_message: str) -> None:
+def maybe_upload(local_dir: Path, repo_id: str, commit_message: str) -> bool:
     if not local_dir.exists() or not repo_id:
-        return
+        return False
     try:
         from huggingface_hub import create_repo, upload_folder
 
@@ -157,9 +157,14 @@ def maybe_upload(local_dir: Path, repo_id: str, commit_message: str) -> None:
             repo_id=repo_id,
             repo_type="model",
             commit_message=commit_message,
+            # Trainer-generated README metadata can be invalid when base_model is a local path.
+            # Skip README upload; model artifacts are sufficient for inference/adapters.
+            ignore_patterns=["README.md"],
         )
+        return True
     except Exception as exc:
         print(f"[WARN] HF upload failed for {repo_id}: {exc}")
+        return False
 
 
 def _checkpoint_step(path: Path) -> int:
@@ -345,7 +350,9 @@ def run_sft(args: argparse.Namespace) -> None:
 
     hf_username = read_hf_username()
     if hf_username and hf_username != "your_hf_username":
-        maybe_upload(output_dir, f"{hf_username}/platoon-qwen-sft", "Upload SFT adapter")
+        uploaded = maybe_upload(output_dir, f"{hf_username}/platoon-qwen-sft", "Upload SFT adapter")
+        if uploaded:
+            print(f"SFT adapter uploaded to {hf_username}/platoon-qwen-sft")
 
     print(f"SFT finished. Saved checkpoint: {output_dir}")
 
@@ -801,8 +808,9 @@ def run_rl(args: argparse.Namespace, settings: dict[str, Any]) -> None:
 
             hf_username = read_hf_username()
             if hf_username and hf_username != "your_hf_username":
-                maybe_upload(ckpt_dir, f"{hf_username}/platoon-qwen-rl", f"Upload RL checkpoint episode {episode}")
-                print(f"[RL] episode {episode} checkpoint uploaded to {hf_username}/platoon-qwen-rl", flush=True)
+                uploaded = maybe_upload(ckpt_dir, f"{hf_username}/platoon-qwen-rl", f"Upload RL checkpoint episode {episode}")
+                if uploaded:
+                    print(f"[RL] episode {episode} checkpoint uploaded to {hf_username}/platoon-qwen-rl", flush=True)
 
     plot_training_curves(metrics_path, reward_png, loss_png)
     print("RL training completed")

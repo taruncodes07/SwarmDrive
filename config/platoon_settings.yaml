@@ -11,6 +11,7 @@ simulation:
   max_deceleration: 8.0
   min_desired_gap: 5.0
   headway_seconds: 2.0
+scenario_active: scenario_01_brake
 initial_conditions:
   car_0:
     x: 200.0
@@ -35,6 +36,9 @@ reward:
   alive_bonus: 0.08
   gap_tracking_bonus: 0.25
   speed_tracking_bonus: 0.12
+  ttc_threshold_s: 1.8
+  ttc_weight: 0.45
+  hazard_ttc_multiplier: 1.6
 scenario_01:
   steady_end: 18
   brake_end: 38
@@ -46,6 +50,32 @@ scenario_01:
   lead_brake_pedal: 0.85
   lead_cruise_accel_pedal: 0.1
   lead_recovery_accel_pedal: 0.6
+scenario_02:
+  steady_end: 12
+  pulse_brake_end: 26
+  rebound_end: 40
+  traffic_wave_end: 64
+  episode_end: 80
+  lead_cruise_speed: 15.0
+  lead_low_speed: 8.0
+  lead_high_speed: 16.5
+  lead_brake_pedal: 0.72
+  lead_cruise_accel_pedal: 0.1
+  lead_rebound_accel_pedal: 0.55
+scenario_03:
+  steady_end: 10
+  downhill_gain_end: 22
+  low_friction_end: 44
+  cutin_emergency_end: 60
+  episode_end: 80
+  lead_cruise_speed: 15.0
+  downhill_target_speed: 18.5
+  lead_low_speed: 6.0
+  lead_cruise_accel_pedal: 0.1
+  downhill_accel_pedal: 0.32
+  lead_low_friction_brake_pedal: 0.55
+  lead_emergency_brake_pedal: 0.95
+  lead_recovery_accel_pedal: 0.65
 logging:
   metrics_path: results/metrics.jsonl
 evaluation:

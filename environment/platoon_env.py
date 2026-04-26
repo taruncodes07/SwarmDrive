@@ -18,7 +18,7 @@ except Exception:  # pragma: no cover - fallback when OpenEnv is unavailable loc
 from config.settings import ROOT_DIR, load_settings
 from environment.communication import BroadcastLayer
 from environment.reward import RewardModel
-from environment.scenarios.scenario_01_brake import Scenario01Brake
+from environment.scenarios import Scenario01Brake, Scenario02Shockwave, Scenario03LowFriction
 from environment.vehicle import Vehicle
 
 ACTION_REGEX = re.compile(
@@ -28,7 +28,7 @@ ACTION_REGEX = re.compile(
 
 
 class PlatoonEnv(Environment):
-    def __init__(self, settings_path: Path | None = None) -> None:
+    def __init__(self, settings_path: Path | None = None, scenario_name: str | None = None) -> None:
         self.settings = load_settings(settings_path)
         self._validate_manifest(ROOT_DIR / "openenv.yaml")
 
@@ -42,7 +42,8 @@ class PlatoonEnv(Environment):
         self.min_desired_gap = float(sim_cfg["min_desired_gap"])
         self.headway_seconds = float(sim_cfg["headway_seconds"])
 
-        self.scenario = Scenario01Brake(self.settings["scenario_01"])
+        self.scenario_name = scenario_name or str(self.settings.get("scenario_active", "scenario_01_brake"))
+        self.scenario = self._build_scenario(self.scenario_name)
         self.reward_model = RewardModel(self.settings["reward"], dt=self.dt)
         self.broadcast_layer = BroadcastLayer()
 
@@ -52,6 +53,21 @@ class PlatoonEnv(Environment):
         self.timestep = 0
         self.phase = "steady"
         self.vehicles: dict[int, Vehicle] = {}
+        self._dynamics = {
+            "accel_scale": 1.0,
+            "decel_scale": 1.0,
+            "road_grip": 1.0,
+            "road_grade": 0.0,
+        }
+
+    def _build_scenario(self, scenario_name: str) -> Any:
+        if scenario_name == "scenario_01_brake":
+            return Scenario01Brake(self.settings["scenario_01"])
+        if scenario_name == "scenario_02_shockwave":
+            return Scenario02Shockwave(self.settings["scenario_02"])
+        if scenario_name == "scenario_03_low_friction":
+            return Scenario03LowFriction(self.settings["scenario_03"])
+        raise ValueError(f"Unknown scenario: {scenario_name}")
 
     def _validate_manifest(self, manifest_path: Path) -> None:
         if not manifest_path.exists():
@@ -106,14 +122,19 @@ class PlatoonEnv(Environment):
         self, actions: dict[str, str]
     ) -> tuple[dict[str, str], dict[str, float], dict[str, bool], dict[str, dict[str, Any]]]:
         self.phase = self.scenario.get_phase(self.timestep)
+        self._dynamics = self.scenario.dynamics_modifiers(self.phase)
+        accel_scale = float(self._dynamics.get("accel_scale", 1.0))
+        decel_scale = float(self._dynamics.get("decel_scale", 1.0))
+        step_max_accel = self.max_acceleration * accel_scale
+        step_max_decel = self.max_deceleration * decel_scale
 
         lead_accel, lead_brake = self.scenario.lead_controls(self.vehicles[0], self.phase)
         self.vehicles[0].apply_action(
             lead_accel,
             lead_brake,
             dt=self.dt,
-            max_acceleration=self.max_acceleration,
-            max_deceleration=self.max_deceleration,
+            max_acceleration=step_max_accel,
+            max_deceleration=step_max_decel,
             v_min=self.v_min,
             v_max=self.v_max,
         )
@@ -133,8 +154,8 @@ class PlatoonEnv(Environment):
                 accel,
                 brake,
                 dt=self.dt,
-                max_acceleration=self.max_acceleration,
-                max_deceleration=self.max_deceleration,
+                max_acceleration=step_max_accel,
+                max_deceleration=step_max_decel,
                 v_min=self.v_min,
                 v_max=self.v_max,
             )
@@ -176,6 +197,7 @@ class PlatoonEnv(Environment):
                     "alive_bonus": terms.alive_bonus,
                     "gap_tracking_bonus": terms.gap_tracking_bonus,
                     "speed_tracking_bonus": terms.speed_tracking_bonus,
+                    "ttc_penalty": terms.ttc_penalty,
                 },
             }
             collision = collision or gap <= 0.0
@@ -197,7 +219,10 @@ class PlatoonEnv(Environment):
     def state(self) -> dict[str, Any]:
         return {
             "timestep": self.timestep,
+            "max_steps": self.max_steps,
             "phase": self.phase,
+            "scenario": self.scenario_name,
+            "dynamics": self._dynamics,
             "vehicles": {
                 car_id: {
                     "x": vehicle.x,
@@ -230,6 +255,8 @@ class PlatoonEnv(Environment):
         front_velocity = front.velocity if agent_id > 0 else -1.0
 
         phase = self.scenario.get_phase(self.timestep)
+        road_grip = float(self._dynamics.get("road_grip", 1.0))
+        road_grade = float(self._dynamics.get("road_grade", 0.0))
         peer_lines = []
         for packet in self.broadcast_layer.receive_for(agent_id):
             peer_lines.append(
@@ -241,7 +268,10 @@ class PlatoonEnv(Environment):
 
         return (
             f"[OBSERVATION - Agent {agent_id} - Step {self.timestep}]\n"
+            f"scenario_name: {self.scenario_name}\n"
             f"scenario_phase: {phase}\n"
+            f"road_grip:      {road_grip:.2f}\n"
+            f"road_grade:     {road_grade:+.3f}\n"
             f"ego_velocity:    {ego.velocity:.2f} m/s\n"
             f"ego_accel_pedal: {ego.accel_pedal:.2f}\n"
             f"ego_brake_pedal: {ego.brake_pedal:.2f}\n"
@@ -290,8 +320,8 @@ class PlatoonEnv(Environment):
             handle.write(json.dumps(record) + "\n")
 
 
-def _run_smoke_test() -> None:
-    env = PlatoonEnv()
+def _run_smoke_test(scenario_name: str | None = None) -> None:
+    env = PlatoonEnv(scenario_name=scenario_name)
     obs = env.reset(seed=123)
     print("Smoke test start. Initial observation keys:", list(obs.keys()))
 
@@ -349,8 +379,8 @@ def _run_smoke_test() -> None:
     print(f"Smoke test complete. Total steps executed: {step_count}")
 
 
-def _run_bad_action_test() -> None:
-    env = PlatoonEnv()
+def _run_bad_action_test(scenario_name: str | None = None) -> None:
+    env = PlatoonEnv(scenario_name=scenario_name)
     env.reset(seed=321)
     _ = env.step(
         {
@@ -365,11 +395,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--test-bad-action", action="store_true")
+    parser.add_argument(
+        "--scenario",
+        type=str,
+        default=None,
+        choices=["scenario_01_brake", "scenario_02_shockwave", "scenario_03_low_friction"],
+    )
     args = parser.parse_args()
 
     if args.smoke_test:
-        _run_smoke_test()
+        _run_smoke_test(scenario_name=args.scenario)
     elif args.test_bad_action:
-        _run_bad_action_test()
+        _run_bad_action_test(scenario_name=args.scenario)
     else:
         parser.print_help()

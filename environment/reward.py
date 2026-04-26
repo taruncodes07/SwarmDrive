@@ -20,6 +20,7 @@ class RewardTerms:
     alive_bonus: float
     gap_tracking_bonus: float
     speed_tracking_bonus: float
+    ttc_penalty: float
 
     @property
     def total(self) -> float:
@@ -33,6 +34,7 @@ class RewardTerms:
             + self.alive_bonus
             + self.gap_tracking_bonus
             + self.speed_tracking_bonus
+            + self.ttc_penalty
         )
 
 
@@ -92,6 +94,18 @@ class RewardModel:
             else 0.0
         )
 
+        # Time-to-collision (TTC) safety shaping in hazard phases.
+        ttc_penalty = 0.0
+        closing_speed = ego.velocity - front.velocity
+        if gap > 0.0 and closing_speed > 1e-6:
+            ttc = gap / closing_speed
+            ttc_threshold = float(self.reward_cfg.get("ttc_threshold_s", 1.8))
+            shortfall = max(0.0, ttc_threshold - ttc)
+            hazard_multiplier = 1.0
+            if phase in {"pulse_brake", "traffic_wave", "low_friction", "cutin_emergency"}:
+                hazard_multiplier = float(self.reward_cfg.get("hazard_ttc_multiplier", 1.5))
+            ttc_penalty = -shortfall * float(self.reward_cfg.get("ttc_weight", 0.5)) * hazard_multiplier
+
         return RewardTerms(
             collision_penalty=collision_penalty,
             gap_error_penalty=gap_error_penalty,
@@ -102,6 +116,7 @@ class RewardModel:
             alive_bonus=alive_bonus,
             gap_tracking_bonus=gap_tracking_bonus,
             speed_tracking_bonus=speed_tracking_bonus,
+            ttc_penalty=ttc_penalty,
         )
 
     @staticmethod

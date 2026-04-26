@@ -47,3 +47,11 @@ class Scenario01Brake:
         if lead_vehicle.velocity > cruise_speed:
             return 0.0, 0.1
         return 0.0, 0.0
+
+    def dynamics_modifiers(self, phase: str) -> dict[str, float]:
+        return {
+            "accel_scale": 1.0,
+            "decel_scale": 1.0,
+            "road_grip": 1.0,
+            "road_grade": 0.0,
+        }

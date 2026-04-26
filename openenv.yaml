@@ -16,6 +16,16 @@ scenarios:
     max_steps: 350
     num_llm_agents: 2
     phases: [steady, brake_event, hold_low, recovery, steady_2]
+  - name: scenario_02_shockwave
+    description: "Moderate stop-and-go shockwave with rebound and oscillatory traffic wave"
+    max_steps: 80
+    num_llm_agents: 2
+    phases: [steady, pulse_brake, rebound, traffic_wave, recover]
+  - name: scenario_03_low_friction
+    description: "Complex downhill + low-friction emergency with delayed braking effectiveness"
+    max_steps: 80
+    num_llm_agents: 2
+    phases: [steady, downhill_gain, low_friction, cutin_emergency, recover]
 model:
   base: Qwen/Qwen2.5-1.5B-Instruct
   sft_checkpoint: "${HF_USERNAME}/platoon-qwen-sft"
