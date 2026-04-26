@@ -27,6 +27,8 @@ ACTION_REGEX = re.compile(
 )
 LANE_CHANGE_REGEX = re.compile(r"lane_change:\s*(stay|left|right)", re.IGNORECASE)
 TARGET_LANE_REGEX = re.compile(r"target_lane:\s*([012])", re.IGNORECASE)
+MOVE_LEFT_REGEX = re.compile(r"move_left:\s*(0|1|false|true|no|yes)\b", re.IGNORECASE)
+MOVE_RIGHT_REGEX = re.compile(r"move_right:\s*(0|1|false|true|no|yes)\b", re.IGNORECASE)
 
 
 class PlatoonEnv(Environment):
@@ -394,12 +396,21 @@ class PlatoonEnv(Environment):
                 "kind": "three_lane",
                 "lane_spacing_m": float(self.settings["scenario_03"]["lane_spacing_m"]),
             }
+        ambulance_clearance = None
+        if self.scenario_name == "scenario_03_ambulance":
+            c1 = self._ambulance_context(1, self.vehicles[1].lane)
+            c2 = self._ambulance_context(2, self.vehicles[2].lane)
+            ambulance_clearance = {
+                "agent_1": bool(c1["ambulance_passed"]),
+                "agent_2": bool(c2["ambulance_passed"]),
+            }
         return {
             "timestep": self.timestep,
             "max_steps": self.max_steps,
             "phase": self.phase,
             "scenario": self.scenario_name,
             "collision": collision,
+            "ambulance_clearance": ambulance_clearance,
             "dynamics": self._dynamics,
             "merge_layout": merge_layout,
             "road_layout": road_layout,
@@ -428,10 +439,27 @@ class PlatoonEnv(Environment):
 
     def _apply_lane_intent(self, vehicle: Vehicle, raw_action: str) -> None:
         text = raw_action or ""
+
+        def _truthy(token: str) -> bool:
+            return token.strip().lower() in ("1", "true", "yes")
+
         tm = TARGET_LANE_REGEX.search(text)
         if tm:
             vehicle.lane = int(np.clip(int(tm.group(1)), 0, 2))
             return
+        ml = MOVE_LEFT_REGEX.search(text)
+        mr = MOVE_RIGHT_REGEX.search(text)
+        if ml or mr:
+            v_l = bool(ml and _truthy(ml.group(1)))
+            v_r = bool(mr and _truthy(mr.group(1)))
+            if v_l and v_r:
+                return
+            if v_l:
+                vehicle.lane = max(0, vehicle.lane - 1)
+                return
+            if v_r:
+                vehicle.lane = min(2, vehicle.lane + 1)
+                return
         lm = LANE_CHANGE_REGEX.search(text)
         if lm:
             word = lm.group(1).lower()
@@ -575,6 +603,8 @@ class PlatoonEnv(Environment):
         )
         if self.scenario_name == "scenario_03_ambulance":
             action_tail += (
+                "move_left: <false|true>   (optional; 0/1 also accepted)\n"
+                "move_right: <false|true>   (optional; at most one of move_left/move_right true)\n"
                 "lane_change: <stay|left|right>   OR   target_lane: <0|1|2>\n"
                 "(optional; default stay). At most one discrete lane shift intent per step.\n"
             )

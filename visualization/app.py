@@ -243,7 +243,22 @@ def _format_step_stats(
         if collision_ever or coll_now:
             lines.append("### ⚠️ Episode ended — **collision occurred**")
         else:
-            lines.append("### ✅ Episode complete — **no collision** (success)")
+            scen = state.get("scenario")
+            ac = state.get("ambulance_clearance")
+            if scen == "scenario_03_ambulance" and isinstance(ac, dict):
+                a1 = bool(ac.get("agent_1"))
+                a2 = bool(ac.get("agent_2"))
+                if a1 and a2:
+                    lines.append(
+                        "### ✅ Episode complete — **no collision**; **ambulance passed both agents** (success)"
+                    )
+                else:
+                    lines.append(
+                        "### ⚠️ Episode complete — **no collision**, but **ambulance did not pass both agents** "
+                        f"(agent 1: {'yes' if a1 else 'no'}, agent 2: {'yes' if a2 else 'no'})"
+                    )
+            else:
+                lines.append("### ✅ Episode complete — **no collision** (success)")
     return "\n".join(lines)
 
 
@@ -277,16 +292,36 @@ def _format_side_step_stats(
         subtitle="untrained (right)",
     )
     parts = ["## Side-by-side", "", st, "", "---", "", su, ""]
+
+    def _amb_ok(stx: dict[str, Any]) -> bool:
+        if stx.get("scenario") != "scenario_03_ambulance":
+            return True
+        ac = stx.get("ambulance_clearance")
+        if not isinstance(ac, dict):
+            return False
+        return bool(ac.get("agent_1")) and bool(ac.get("agent_2"))
+
     if episode_done_t and episode_done_u:
         ok = not collision_ever_t and not collision_ever_u
-        if ok:
-            parts.append("### ✅ Both episodes finished — **no collisions** (success)")
+        if ok and _amb_ok(state_t) and _amb_ok(state_u):
+            parts.append("### ✅ Both episodes finished — **no collisions**; **ambulance passed both agents on each side** (success)")
+        elif ok:
+            parts.append(
+                "### ⚠️ Both episodes finished — **no collisions**, but **ambulance scenario incomplete** on one or both sides "
+                "(requires ambulance to pass agent 1 **and** agent 2)"
+            )
         else:
             parts.append("### ⚠️ One or both episodes had a **collision**")
     elif episode_done_t and not collision_ever_t:
-        parts.append("### ✅ Trained episode — **no collision** (success)")
+        if _amb_ok(state_t):
+            parts.append("### ✅ Trained episode — **no collision**; **ambulance passed both agents** (success)")
+        else:
+            parts.append("### ⚠️ Trained episode — **no collision**, but **ambulance did not pass both agents**")
     elif episode_done_u and not collision_ever_u:
-        parts.append("### ✅ Untrained episode — **no collision** (success)")
+        if _amb_ok(state_u):
+            parts.append("### ✅ Untrained episode — **no collision**; **ambulance passed both agents** (success)")
+        else:
+            parts.append("### ⚠️ Untrained episode — **no collision**, but **ambulance did not pass both agents**")
     return "\n".join(parts)
 
 
@@ -677,12 +712,102 @@ def _on_mode_change(mode: str) -> tuple[str, str, list[list[Any]], dict[str, Any
     return (*vis, _scrub_slider_update(mode, index=idx, interactive=True))
 
 
+def _playback_pass_once(mode: str, delay: float, hist: list[Any]):
+    if not hist:
+        return
+    stopped_mid = False
+    if mode == "Side-by-Side":
+        for i, pair in enumerate(hist):
+            if not RUNTIME.is_playing:
+                idx = (i - 1) if i > 0 else 0
+                yield (
+                    *_render_history_frame(mode, idx),
+                    _scrub_slider_update(mode, index=idx, interactive=True),
+                )
+                stopped_mid = True
+                break
+            rt, ru = pair
+            st = rt["state"]
+            su = ru["state"]
+            stats_pb = _playback_frame_stats(mode, pair, i, len(hist))
+            yield (
+                build_road_svg(st, title="Trained (Playback)"),
+                build_road_svg(su, title="Untrained (Playback)"),
+                _broadcast_table(st),
+                _state_json(st, 1),
+                _state_json(st, 2),
+                st["phase"],
+                stats_pb,
+                _scrub_slider_update(mode, index=i, interactive=False),
+            )
+            if delay > 0.0:
+                time.sleep(delay)
+    else:
+        for i, item in enumerate(hist):
+            if not RUNTIME.is_playing:
+                idx = (i - 1) if i > 0 else 0
+                yield (
+                    *_render_history_frame(mode, idx),
+                    _scrub_slider_update(mode, index=idx, interactive=True),
+                )
+                stopped_mid = True
+                break
+            frame_state = _history_frame_state(item)
+            title = "Trained Agent (Playback)" if mode == "Trained (RL)" else "Untrained Agent (Playback)"
+            stats_pb = _playback_frame_stats(mode, item, i, len(hist))
+            yield (
+                build_road_svg(frame_state, title=title),
+                "",
+                _broadcast_table(frame_state),
+                _state_json(frame_state, 1),
+                _state_json(frame_state, 2),
+                frame_state["phase"],
+                stats_pb,
+                _scrub_slider_update(mode, index=i, interactive=False),
+            )
+            if delay > 0.0:
+                time.sleep(delay)
+    if stopped_mid:
+        return
+    if not RUNTIME.is_playing:
+        li = len(hist) - 1
+        yield (
+            *_render_history_frame(mode, li),
+            _scrub_slider_update(mode, index=li, interactive=True),
+        )
+        return
+    li = len(hist) - 1
+    yield (
+        *_render_history_frame(mode, li),
+        _scrub_slider_update(mode, index=li, interactive=True),
+    )
+
+
+def _replay_playback_loop(mode: str, delay: float):
+    RUNTIME.mode = mode
+    hist = _history_for_playback(mode)
+    if not hist:
+        RUNTIME.is_playing = False
+        live = list(_live_env_outputs(mode))
+        live[-1] = (
+            live[-1]
+            + "\n\n*No recording in this mode — run **Play** first to record an episode, then use **Replay recording**.*"
+        )
+        yield (
+            *live,
+            gr.update(minimum=0, maximum=0, value=0, interactive=True),
+        )
+        return
+    RUNTIME.is_playing = True
+    yield from _playback_pass_once(mode, delay, hist)
+    RUNTIME.is_playing = False
+
+
 def _play_loop(
     mode: str,
     delay: float,
     steps_per_frame: int,
     seed: float,
-    repeat_playback: bool,
     max_steps: int = 2000,
 ):
     RUNTIME.mode = mode
@@ -749,76 +874,7 @@ def _play_loop(
         )
         return
 
-    while True:
-        stopped_mid = False
-        if mode == "Side-by-Side":
-            for i, pair in enumerate(hist):
-                if not RUNTIME.is_playing:
-                    idx = (i - 1) if i > 0 else 0
-                    yield (
-                        *_render_history_frame(mode, idx),
-                        _scrub_slider_update(mode, index=idx, interactive=True),
-                    )
-                    stopped_mid = True
-                    break
-                rt, ru = pair
-                st = rt["state"]
-                su = ru["state"]
-                stats_pb = _playback_frame_stats(mode, pair, i, len(hist))
-                yield (
-                    build_road_svg(st, title="Trained (Playback)"),
-                    build_road_svg(su, title="Untrained (Playback)"),
-                    _broadcast_table(st),
-                    _state_json(st, 1),
-                    _state_json(st, 2),
-                    st["phase"],
-                    stats_pb,
-                    _scrub_slider_update(mode, index=i, interactive=False),
-                )
-                if delay > 0.0:
-                    time.sleep(delay)
-        else:
-            for i, item in enumerate(hist):
-                if not RUNTIME.is_playing:
-                    idx = (i - 1) if i > 0 else 0
-                    yield (
-                        *_render_history_frame(mode, idx),
-                        _scrub_slider_update(mode, index=idx, interactive=True),
-                    )
-                    stopped_mid = True
-                    break
-                frame_state = _history_frame_state(item)
-                title = "Trained Agent (Playback)" if mode == "Trained (RL)" else "Untrained Agent (Playback)"
-                stats_pb = _playback_frame_stats(mode, item, i, len(hist))
-                yield (
-                    build_road_svg(frame_state, title=title),
-                    "",
-                    _broadcast_table(frame_state),
-                    _state_json(frame_state, 1),
-                    _state_json(frame_state, 2),
-                    frame_state["phase"],
-                    stats_pb,
-                    _scrub_slider_update(mode, index=i, interactive=False),
-                )
-                if delay > 0.0:
-                    time.sleep(delay)
-        if stopped_mid:
-            break
-        if not RUNTIME.is_playing:
-            li = len(hist) - 1
-            yield (
-                *_render_history_frame(mode, li),
-                _scrub_slider_update(mode, index=li, interactive=True),
-            )
-            break
-        if not repeat_playback:
-            li = len(hist) - 1
-            yield (
-                *_render_history_frame(mode, li),
-                _scrub_slider_update(mode, index=li, interactive=True),
-            )
-            break
-
+    yield from _playback_pass_once(mode, delay, hist)
     RUNTIME.is_playing = False
 
 
@@ -955,9 +1011,9 @@ def build_app() -> gr.Blocks:
 
         with gr.Row():
             play = gr.Button("Play")
+            replay = gr.Button("Replay recording")
             pause = gr.Button("Pause")
             reset = gr.Button("Reset")
-            repeat_playback = gr.Checkbox(value=False, label="Repeat playback")
 
         playback_scrub = gr.Slider(
             minimum=0,
@@ -969,7 +1025,13 @@ def build_app() -> gr.Blocks:
 
         play.click(
             fn=_play_loop,
-            inputs=[mode, speed, steps_per_frame, seed, repeat_playback],
+            inputs=[mode, speed, steps_per_frame, seed],
+            outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats, playback_scrub],
+        )
+
+        replay.click(
+            fn=_replay_playback_loop,
+            inputs=[mode, speed],
             outputs=[road_left, road_right, broadcast, agent1, agent2, phase, stats, playback_scrub],
         )
 
