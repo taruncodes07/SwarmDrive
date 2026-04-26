@@ -5,6 +5,8 @@ colorFrom: blue
 colorTo: indigo
 sdk: gradio
 sdk_version: 4.42.0
+# Python 3.13 removed stdlib `audioop`; Gradio/pydub need 3.11 or 3.12 on Spaces.
+python_version: 3.11.9
 app_file: visualization/app.py
 pinned: false
 license: mit

@@ -10,6 +10,8 @@ datasets>=2.20.0
 huggingface_hub==0.25.2
 spaces>=0.28.0
 gradio==4.42.0
+# Python 3.13+: stdlib audioop removed; pydub (via Gradio) needs this backport.
+audioop-lts>=0.2.1; python_version >= "3.13"
 matplotlib>=3.9.0
 wandb>=0.17.0
 tqdm>=4.66.0
